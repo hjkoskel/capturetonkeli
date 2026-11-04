@@ -469,6 +469,14 @@ func (c *Client) WriteFrame(h wire.Header, body []byte) error {
 	return err
 }
 
+// WriteRaw writes arbitrary bytes to the transport (fuzzing, negative tests).
+func (c *Client) WriteRaw(b []byte) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	_, err := c.rw.Write(b)
+	return err
+}
+
 // Do sends a raw request and waits for its response, retrying with the same
 // req_id. RSP_ERR is returned as *DeviceError together with the header.
 func (c *Client) Do(ctx context.Context, typ uint8, body []byte) (wire.Header, []byte, error) {

@@ -44,7 +44,7 @@ func init() {
 		},
 		run: func(ctx context.Context, e *env) (any, error) { return cmdPing(ctx, e, pingN, pingIv) }})
 	register(command{name: "config get", summary: "GET_CONFIG", run: func(ctx context.Context, e *env) (any, error) {
-		return withClient(ctx, e, func(c *ctp.Client) (any, error) { return c.GetConfig(ctx) })
+		return configCmd(ctx, e, func(c *ctp.Client) (wire.Config, error) { return c.GetConfig(ctx) })
 	}})
 	var bw string
 	register(command{name: "channel set", summary: "SET_CHANNEL", example: "ctpbench channel set 36 --bw 40+",
@@ -240,7 +240,7 @@ func init() {
 	register(command{name: "wait-device", summary: "wait until the device answers HELLO (use --timeout)",
 		run: cmdWaitDevice})
 	for _, n := range []string{
-		"fuzz", "soak", "inject", "raw stream", "report merge", "schema"} {
+		"inject", "raw stream", "report merge", "schema"} {
 		n := n
 		register(command{name: n, summary: "not implemented yet", run: func(context.Context, *env) (any, error) {
 			return nil, errf(exitUsage, "NOT_IMPLEMENTED", "planned for a later milestone (docs/07 §5)", "%s is not implemented yet", n)
