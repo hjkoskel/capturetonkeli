@@ -17,7 +17,7 @@ CC_HOST    ?= cc
 
 CORE_SRC   := firmware/components/ctp_core
 
-.PHONY: fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
+.PHONY: js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
         hil ci lint go-test vectors ctpbench release serve doctor clean
 
 help:
@@ -27,6 +27,7 @@ help:
 	@echo "  diff-test     C filter vs Go reference, 100k random cases (L3)"
 	@echo "  fw-host-conf  ctp_fw_host on a PTY + ctpbench conformance (L4, M2 gate)"
 	@echo "  go-test       go vet + go test -race ./..."
+	@echo "  js-test       web UI modules vs shared vectors, demo device, error mapping (node --test)"
 	@echo "  lint          layering greps, gofmt, cppcheck, clang-tidy, gcc -fanalyzer"
 	@echo "  fw            idf.py build (BUILD_ENV=auto|native|podman)"
 	@echo "  fw-smoke      IDF API smoke build + Kconfig check (docs/10 §5)"
@@ -43,6 +44,9 @@ ctpbench:
 
 vectors:
 	go generate ./...
+
+js-test:
+	node --test test/js/
 
 go-test:
 	go vet ./...
@@ -191,7 +195,7 @@ doctor: ctpbench
 	@cmake --version | head -1; python3 --version; go version; echo "IDF local: $(IDF_LOCAL:%=%) pinned: $(IDF_PIN) -> $(ENV_SEL)"
 	-$(CTPBENCH) --port $(PORT) doctor
 
-ci: lint host-test fuzz-short diff-test go-test fw-host-conf fw fw-smoke
+ci: lint host-test fuzz-short diff-test go-test js-test fw-host-conf fw fw-smoke
 
 release:
 	@echo "make release: not implemented yet (milestone M7, docs/07 §5)" >&2; exit 2

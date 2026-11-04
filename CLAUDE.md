@@ -68,7 +68,9 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 ## Status (2026-11-04)
 - Hardware (M3 partial): flashing via REBOOT 1, full conformance passes on the XIAO C5 (2026-11-04). Findings in docs/10 §2–3, docs/03 rev 3 (`no_fcs`). No HT40 in NULL mode. Weak RSSI (−82…−91 dBm): check the antenna.
 - Done (branch `m0-m2-core`): Go reference (`ctp/` wire, codec, filter, regdom, fwver, sim, client; Linux serialport), conformance suite (39 cases), ctpbench subset, shared vectors + C headers; C core M1/M2 (`ctp_core`), `ctp_fw_host` on a PTY passes conformance; ESP-IDF ports + app build natively; IDF API smoke build.
-- Not yet: ctpbench `fw *`, `bench *`, `fuzz`, `soak`, `inject`; Go `romflash`, `pcapng`, `dot11`, darwin/windows serial; `fw/` bundle + `make release`; web UI; anything needing hardware (M3+).
-- Gates without hardware: `make lint host-test fuzz-short diff-test go-test fw-host-conf fw fw-smoke` (= `make ci`).
+- Web UI (index.html, js/, css/): all panels, demo mode, recording/export, display filter, error handling; tests `make js-test` (node) + headless Chromium checks. Not yet: browser flashing (docs/04 §11.1).
+- Not yet: ctpbench `fuzz`, `soak`, `inject`; darwin/windows serial; `fw/` bundle + `make release`.
+- Gates without hardware: `make lint host-test fuzz-short diff-test go-test js-test fw-host-conf fw fw-smoke` (= `make ci`).
+- Web UI: errors always go through js/errors.js `describe()` (title + explanation + actions) and are shown inline or as a banner and logged; never `alert()`. Test UI changes against demo mode first.
 - Open decision: project licence (docs/08 D2). Go module path is `github.com/hjkoskel/capturetonkeli`.
 - Stopping helper processes: use `pkill -x ctp_fw_host` (never `pgrep -f`/`pkill -f` with a pattern that also matches your own shell).

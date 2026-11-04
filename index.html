@@ -2,18 +2,105 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>capturetonkeli</title>
-<style>
-  :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-  body { max-width: 40rem; margin: 3rem auto; padding: 0 1rem; line-height: 1.5; }
-  code { font-size: 0.95em; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>capturetonkeli – Wi-Fi capture dongle</title>
+<meta name="description" content="Monitor-mode Wi-Fi capture in the browser with an ESP32-C5 USB dongle (Web Serial / WebUSB). Receive-only.">
+<meta name="theme-color" content="#1f6feb">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/app.css">
+<script type="module" src="js/main.js"></script>
 </head>
 <body>
-<h1>capturetonkeli</h1>
-<p>Wi-Fi monitor-mode capture dongle (XIAO ESP32-C5) with a browser UI over Web Serial / WebUSB.</p>
-<p><strong>Status:</strong> under construction. The web UI will replace this placeholder (milestone M0, see <a href="docs/07-firmware-plan.md">docs/07</a>).</p>
-<p>Specifications: <a href="docs/04-web-ui-spec.md">Web UI</a> · <a href="docs/03-usb-link-protocol.md">USB protocol</a> · <a href="docs/11-github-repo-and-release.md">Repo &amp; release</a></p>
+<noscript><div class="noscript">capturetonkeli needs JavaScript: it talks to the USB dongle from the browser.</div></noscript>
+
+<header id="topbar" class="topbar">
+  <div class="brand" title="capturetonkeli">ctk</div>
+  <button id="btn-connect" class="primary" accesskey="c">Connect</button>
+  <div id="link" class="link" role="status" aria-live="polite">
+    <span id="link-dot" class="dot grey" aria-hidden="true"></span><span id="link-text">Disconnected</span>
+    <span id="link-rtt" class="muted"></span>
+  </div>
+  <div id="fw-badge" class="badge hidden"></div>
+  <div class="spacer"></div>
+  <button id="btn-capture" disabled title="Start/stop capture (S)">▶ Capture</button>
+  <button id="btn-record" disabled title="Record to pcapng (R)">● Record</button>
+  <button id="btn-menu" class="icon" aria-haspopup="menu" aria-expanded="false" title="Menu">⋮</button>
+  <div id="menu" class="menu hidden" role="menu">
+    <button role="menuitem" data-act="disconnect">Disconnect</button>
+    <button role="menuitem" data-act="export">Export buffer (pcapng)…</button>
+    <button role="menuitem" data-act="help">Keyboard shortcuts</button>
+    <button role="menuitem" data-act="about">About &amp; legal</button>
+  </div>
+</header>
+
+<div id="banners" aria-live="assertive"></div>
+
+<main id="app">
+  <section id="start" class="start">
+    <h1>capturetonkeli</h1>
+    <p>Wi-Fi monitor mode for your browser: an ESP32-C5 USB dongle captures 802.11 frames on 2.4 and 5 GHz, filters them on the device and streams them here. It only receives; it never transmits.</p>
+    <div id="support" class="support"></div>
+    <div class="start-actions">
+      <button id="start-connect" class="primary big">Connect dongle</button>
+      <button id="start-reconnect" class="big hidden"></button>
+      <button id="start-demo" class="big">Try without hardware</button>
+    </div>
+    <p class="muted small">Desktop: Chrome, Edge, Opera, or Firefox ≥ 151 (Web Serial). Android: Chrome (USB-OTG, WebUSB). iPhone/iPad are not supported.</p>
+  </section>
+
+  <nav id="tabs" class="tabs" role="tablist" aria-label="Panels">
+    <button role="tab" data-tab="packets" class="mobile-only">Packets</button>
+    <button role="tab" data-tab="radio" aria-selected="true">Radio</button>
+    <button role="tab" data-tab="filter">Filter</button>
+    <button role="tab" data-tab="stats">Stats</button>
+    <button role="tab" data-tab="device">Device</button>
+    <button role="tab" data-tab="log">Log<span id="log-badge" class="count hidden"></span></button>
+    <button role="tab" data-tab="settings">Settings</button>
+  </nav>
+
+  <aside id="side" class="side">
+    <section id="panel-radio" class="panel" role="tabpanel"></section>
+    <section id="panel-filter" class="panel hidden" role="tabpanel"></section>
+    <section id="panel-stats" class="panel hidden" role="tabpanel"></section>
+    <section id="panel-device" class="panel hidden" role="tabpanel"></section>
+    <section id="panel-log" class="panel hidden" role="tabpanel"></section>
+    <section id="panel-settings" class="panel hidden" role="tabpanel"></section>
+  </aside>
+
+  <section id="packets" class="packets" aria-label="Packets">
+    <div class="list-tools">
+      <input id="dfilter" type="search" placeholder='Display filter: type==beacon and rssi>-70 · ssid~"home" · fcs_err' aria-label="Display filter" spellcheck="false" autocomplete="off">
+      <span id="dfilter-msg" class="muted small"></span>
+      <label class="small"><input id="autoscroll" type="checkbox" checked> Auto-scroll</label>
+      <button id="btn-freeze" class="small" title="Freeze view (Space)">Freeze</button>
+      <button id="btn-clear" class="small">Clear</button>
+    </div>
+    <div class="grid-head" role="row">
+      <span>#</span><span>Time</span><span>Ch</span><span>RSSI</span><span>Rate</span><span>Len</span><span>Type</span><span>Src</span><span>Dst</span><span>BSSID</span><span>Info</span>
+    </div>
+    <div id="grid" class="grid" role="grid" tabindex="0" aria-label="Captured packets">
+      <div id="grid-spacer"></div>
+      <div id="grid-rows"></div>
+    </div>
+    <button id="jump-live" class="jump hidden">Jump to live</button>
+    <div id="empty" class="empty">No packets yet.</div>
+  </section>
+
+  <section id="detail" class="detail" aria-label="Packet detail">
+    <div class="detail-head"><strong>Packet detail</strong><button id="detail-close" class="icon mobile-only" aria-label="Close">✕</button></div>
+    <div id="detail-body" class="muted">Select a packet.</div>
+  </section>
+</main>
+
+<dialog id="dlg" aria-labelledby="dlg-title">
+  <form method="dialog">
+    <h2 id="dlg-title"></h2>
+    <div id="dlg-body"></div>
+    <menu id="dlg-buttons"></menu>
+  </form>
+</dialog>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 </body>
 </html>
