@@ -88,4 +88,9 @@ uint32_t ctp_enc_pkt_meta(uint8_t *dst, uint32_t cap, const ctp_pkt_meta_t *m);
  * 11b rate code or the L-SIG RATE field. Sets *unknown when not mappable. */
 uint8_t ctp_rate_from_rxctrl(uint8_t bb_format, uint8_t raw_rate, bool *unknown);
 
+/* MCS from rx_ctrl.he_siga1 (HT-SIG1 / HE-SIGA1) for bb_format HT (2) and
+ * HE-SU/HE-ER-SU (4/6). Other formats set *unknown (VHT MCS is in SIG-A2,
+ * HE-MU/TB per-user MCS is in SIG-B: not exposed by the C5 rx_ctrl). */
+uint8_t ctp_mcs_from_siga1(uint8_t bb_format, uint32_t siga1, bool *unknown);
+
 #endif

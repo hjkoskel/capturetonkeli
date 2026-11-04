@@ -255,3 +255,18 @@ uint8_t ctp_rate_from_rxctrl(uint8_t bb_format, uint8_t raw_rate, bool *unknown)
     *unknown = true;
     return 0u;
 }
+
+uint8_t ctp_mcs_from_siga1(uint8_t bb_format, uint32_t siga1, bool *unknown)
+{
+    *unknown = false;
+    switch (bb_format) {
+    case 2u: /* HT-SIG1 bits 0..6 */
+        return (uint8_t)(siga1 & 0x7Fu);
+    case 4u: /* HE-SU */
+    case 6u: /* HE-ER-SU: HE-SIG-A1 bits 3..6 */
+        return (uint8_t)((siga1 >> 3) & 0x0Fu);
+    default:
+        *unknown = true;
+        return 0u;
+    }
+}

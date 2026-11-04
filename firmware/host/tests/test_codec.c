@@ -292,6 +292,12 @@ static void test_rates(void)
     TEST_ASSERT_TRUE(unk);
     (void)ctp_rate_from_rxctrl(2u, 5u, &unk);
     TEST_ASSERT_TRUE(unk);
+    TEST_ASSERT_EQUAL_UINT8(7u, ctp_mcs_from_siga1(2u, 0xFF87u, &unk)); /* HT: bits 0..6 */
+    TEST_ASSERT_FALSE(unk);
+    TEST_ASSERT_EQUAL_UINT8(11u, ctp_mcs_from_siga1(4u, 11u << 3, &unk)); /* HE-SU: bits 3..6 */
+    TEST_ASSERT_FALSE(unk);
+    (void)ctp_mcs_from_siga1(3u, 0u, &unk); /* VHT */
+    TEST_ASSERT_TRUE(unk);
 }
 
 void run_codec_tests(void)

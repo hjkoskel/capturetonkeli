@@ -117,3 +117,4 @@ kconfig CONFIG_ESPTOOLPY_FLASHSIZE_8MB
 header esp_cpu.h
 func esp_cpu_get_cycle_count
 kconfig CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ
+field wifi_pkt_rx_ctrl_t.he_siga1

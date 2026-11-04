@@ -87,7 +87,7 @@ typedef struct {
     int8_t rssi;
     int8_t noise;
     uint8_t bb_format;
-    uint8_t rate;         /* already converted (ctp_rate_from_rxctrl) */
+    uint8_t rate;         /* converted: 500 kb/s units (legacy) or MCS (ctp_rate_from_rxctrl / ctp_mcs_from_siga1) */
     bool rate_unknown;
     uint8_t channel;
     bool ht40;

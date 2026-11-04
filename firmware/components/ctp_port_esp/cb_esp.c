@@ -47,7 +47,11 @@ static void IRAM_ATTR on_rx(void *buf, wifi_promiscuous_pkt_type_t type)
         .ampdu = false, /* not reported by the C5 rx_ctrl */
         .ts_us = (uint64_t)esp_timer_get_time(),
     };
-    rx.rate = ctp_rate_from_rxctrl(rx.bb_format, (uint8_t)rc->rate, &rx.rate_unknown);
+    if (rx.bb_format <= 1u) {
+        rx.rate = ctp_rate_from_rxctrl(rx.bb_format, (uint8_t)rc->rate, &rx.rate_unknown);
+    } else {
+        rx.rate = ctp_mcs_from_siga1(rx.bb_format, rc->he_siga1, &rx.rate_unknown);
+    }
 #if CONFIG_CTK_DIAG
     if (len >= 1u && (uint32_t)type < 4u && rc->rx_state == 0u) { /* good FCS only */
         s_type[(uint32_t)type][(p->payload[0] >> 2) & 3u]++;

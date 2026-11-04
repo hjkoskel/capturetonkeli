@@ -249,7 +249,7 @@ off size field
 18  2    rx_seq      per-capture counter of *passed* frames. A gap with seq continuous = dongle-side drop
 20  …    data[cap_len]
 ```
-- *Rev 2 (doc 08 A1):* `sig_mode` was replaced by `bb_format`, because the C5 (Wi-Fi MAC v3) reports `cur_bb_format` and gives a legacy rate only for 11b/11g frames. The firmware converts the raw rx_ctrl rate code to 500 kb/s units (core function, unit-tested); the MCS of HT/VHT/HE frames is extracted from the SIG fields once M4 confirms the bit layout, until then `rate_unknown` is set for those formats.
+- *Rev 2 (doc 08 A1):* `sig_mode` was replaced by `bb_format`, because the C5 (Wi-Fi MAC v3) reports `cur_bb_format` and gives a legacy rate only for 11b/11g frames. The firmware converts the raw rx_ctrl rate code to 500 kb/s units (core function, unit-tested); MCS comes from `rx_ctrl.he_siga1` for HT (HT-SIG1 bits 0–6) and HE-SU/HE-ER-SU (HE-SIG-A1 bits 3–6); VHT, VHT-MU, HE-MU and HE-TB keep `rate_unknown` (their MCS is not in SIG-A1).
 - `data` holds the first `cap_len` bytes of the frame. Without `no_fcs`, `orig_len` includes the 4-byte FCS and the FCS is present in `data` iff `cap_len == orig_len`. With `no_fcs` (rev 3), the device does not have the FCS: `orig_len` and `data` exclude it (filters' `len_min`/`len_max` then also compare against the length without FCS).
 - *Rev 3 (M3 hardware finding):* the ESP32-C5 driver (IDF v6.0.2) delivers the MPDU without a valid FCS: the last 4 bytes counted by `rx_ctrl.sig_len` are driver data, and `dump_len` = `sig_len` + 4. The firmware therefore strips them and always sets `no_fcs`. The simulator and host fake radio still deliver FCS frames, so both paths stay tested.
 - `cap_len ≤ min(snaplen or ∞, 4096)`; `truncated` is set iff `cap_len < orig_len`.
