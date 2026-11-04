@@ -122,9 +122,9 @@ Errors from the port carry the raw platform code (`esp_err_t` on target), which 
 |---|---|
 | Packet ring | 96 KB (tunable, `_Static_assert` ≤ 128 KB) |
 | RX frame buffer + COBS scratch | 2 × 4.2 KB |
-| TX buffer | 2 KB |
+| TX buffer | 4.5 KB (`CTP_TX_BUF` 4608: must hold one max-size PKT frame; the 2 KB first estimate could not; re-tuned in M3) |
 | Filter slots (compiled) | 2 × ~2.4 KB |
-| Ctrl queues | 8 × 256 B each direction (responses never exceed 256 B except HELLO/CONFIG, all < 64 B) |
+| Ctrl queues | out: 8 × 208 B (largest body EVT_LOG 201 B); requests: 4 × 2.4 KB (max SET_FILTER 2328 B). Full request queue → the link stops reading USB (back-pressure), so bursts are never dropped |
 | Task stacks | link 4 KB, ctrl 4 KB (verified by high-water mark reporting) |
 | Wi-Fi driver | per IDF defaults, RX buffers tuned in M4 |
 

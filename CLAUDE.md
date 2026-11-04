@@ -63,5 +63,9 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 ## Local web development
 - `make serve` (static server on localhost; Web Serial/WebUSB work on localhost) or the UI's demo mode ("Try without hardware").
 
-## Status
-Specification phase complete; implementation starts at milestone M0 (docs/07 §5). Open decision: project licence (docs/08 D2). In `go.mod`, module path is `github.com/hjkoskel/capturetonkeli`.
+## Status (2026-11-04)
+- Done (branch `m0-m2-core`): Go reference (`ctp/` wire, codec, filter, regdom, fwver, sim, client; Linux serialport), conformance suite (39 cases), ctpbench subset, shared vectors + C headers; C core M1/M2 (`ctp_core`), `ctp_fw_host` on a PTY passes conformance; ESP-IDF ports + app build natively; IDF API smoke build.
+- Not yet: ctpbench `fw *`, `bench *`, `fuzz`, `soak`, `inject`; Go `romflash`, `pcapng`, `dot11`, darwin/windows serial; `fw/` bundle + `make release`; web UI; anything needing hardware (M3+).
+- Gates without hardware: `make lint host-test fuzz-short diff-test go-test fw-host-conf fw fw-smoke` (= `make ci`).
+- Open decision: project licence (docs/08 D2). Go module path is `github.com/hjkoskel/capturetonkeli`.
+- Stopping helper processes: use `pkill -x ctp_fw_host` (never `pgrep -f`/`pkill -f` with a pattern that also matches your own shell).

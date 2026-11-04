@@ -48,14 +48,26 @@ void ctp_capture_rx(ctp_t *c, const ctp_rx_t *rx)
         bump(&c->cnt.drop_ring);
         goto cleanup;
     }
-    uint8_t flags = 0u;
-    flags = (uint8_t)(flags | (rx->fcs_err ? CTP_PKT_FCS_ERR : 0u));
-    flags = (uint8_t)(flags | ((cap < rx->len) ? CTP_PKT_TRUNCATED : 0u));
-    flags = (uint8_t)(flags | ((rx->channel > 14u) ? CTP_PKT_5GHZ : 0u));
-    flags = (uint8_t)(flags | (rx->ht40 ? CTP_PKT_HT40 : 0u));
-    flags = (uint8_t)(flags | (rx->ampdu ? CTP_PKT_AMPDU : 0u));
-    flags = (uint8_t)(flags | (rx->rate_unknown ? CTP_PKT_RATE_UNKNOWN : 0u));
-    const ctp_pkt_meta_t m = {.ts_us = rx->ts_us, .channel = rx->channel, .flags = flags, .rssi = rx->rssi,
+    uint32_t flags = 0u;
+    if (rx->fcs_err) {
+        flags |= CTP_PKT_FCS_ERR;
+    }
+    if (cap < rx->len) {
+        flags |= CTP_PKT_TRUNCATED;
+    }
+    if (rx->channel > 14u) {
+        flags |= CTP_PKT_5GHZ;
+    }
+    if (rx->ht40) {
+        flags |= CTP_PKT_HT40;
+    }
+    if (rx->ampdu) {
+        flags |= CTP_PKT_AMPDU;
+    }
+    if (rx->rate_unknown) {
+        flags |= CTP_PKT_RATE_UNKNOWN;
+    }
+    const ctp_pkt_meta_t m = {.ts_us = rx->ts_us, .channel = rx->channel, .flags = (uint8_t)flags, .rssi = rx->rssi,
                               .noise = rx->noise, .rate = rx->rate, .bb_format = rx->bb_format,
                               .orig_len = rx->len, .cap_len = (uint16_t)cap, .rx_seq = seq};
     rec[0] = (uint8_t)atomic_load_explicit(&c->cfg_gen, memory_order_acquire);

@@ -72,9 +72,10 @@ CONFIG_ESP_TASK_WDT_EN=y
 CONFIG_ESP_BROWNOUT_DET=y
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 CONFIG_APP_REPRODUCIBLE_BUILD=y
-CONFIG_APP_BUILD_MINIMIZE_BINARY_CHANGES=n # padding grows the image; revisit only if differential updates write too much
 CONFIG_SPIRAM=n                            # not needed; keeps boot simple (enable later only with a reason)
 ```
+*M0 finding (v6.0.2 build):* `CONFIG_APP_BUILD_MINIMIZE_BINARY_CHANGES` is an unknown symbol for esp32c5 in v6.0.2, so it was removed from `sdkconfig.defaults` (docs/09 §3.2 differential flashing relies on sector MD5s only).
+
 Option names that changed between versions make `idf.py` warn about unknown symbols. The smoke build treats that warning as an error.
 
 ## 5. API smoke build (M0 gate item)

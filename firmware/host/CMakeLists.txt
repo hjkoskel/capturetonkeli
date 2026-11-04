@@ -63,3 +63,8 @@ foreach(t frame filter messages)
     target_compile_options(fuzz_${t} PRIVATE ${CTP_WARN})
     target_link_libraries(fuzz_${t} ctp_core)
 endforeach()
+
+# differential test helper (C filter vs Go filter.Match; internal/difftest)
+add_executable(filter_diff tools/filter_diff.c)
+target_compile_options(filter_diff PRIVATE ${CTP_WARN} -Wno-format-nonliteral)
+target_link_libraries(filter_diff ctp_core)

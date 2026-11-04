@@ -76,7 +76,7 @@ func esp_rom_crc32_le
 func esp_task_wdt_add
 func esp_task_wdt_reset
 func xTaskCreateStatic
-func xQueueCreateStatic
+# xQueueCreateStatic: not used (core has its own SPSC queues)
 func xTaskDelayUntil
 func uxTaskGetStackHighWaterMark
 macro __NOINIT_ATTR
