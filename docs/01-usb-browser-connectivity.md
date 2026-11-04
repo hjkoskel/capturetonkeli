@@ -31,7 +31,7 @@
 
 ## Open risks to test on hardware
 1. DTR/RTS toggling on port open can trigger USJ auto-reset/download-mode → set signals explicitly after open, test on each OS.
-   - *M3, Linux:* opening with DTR=1/RTS=0 does not reset the C5 (uptime continues across opens). The DTR/RTS reset-into-bootloader sequence is unreliable (see doc 10 §3); use `REBOOT 1`. macOS/Windows/Android still to test.
+   - *M3, Linux:* neither DTR=1/RTS=0 nor the kernel default DTR=1/RTS=1 resets the running C5 app. Policy: **never change the lines** (`serialport.ApplySafeOpenSignals` is a no-op): lowering RTS while the ROM loader runs wedged the C5. The DTR/RTS reset-into-bootloader sequence is unreliable (doc 10 §3); use `REBOOT 1`. macOS/Windows/Android still to test (Web Serial `setSignals` likewise: don't call it).
 2. Real sustained USJ throughput on C5 and CPU cost of feeding it while promiscuous callback runs.
    - *M3 (Linux):* sustained USJ TX ≈ **960 KB/s** wire bytes (14.5k PKT/s at snaplen 32, 620 PKT/s at 1500 B; `docs/measurements/throughput-usb-v6.0.2.json`). PING RTT idle p99 1.2 ms; under full saturation p99 3.0 ms after bounding the bytes queued ahead of responses (512 B PKT batches, 1 KB driver TX buffer). Note: the IDF USJ driver never accepts a single write larger than its TX buffer; the port writes in ≤ buffer/2 chunks.
 3. Android OTG power budget and whether Chrome's WebUSB picker shows 303A:1001 on target phones.

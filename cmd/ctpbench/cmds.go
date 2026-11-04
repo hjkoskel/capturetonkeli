@@ -234,7 +234,7 @@ func init() {
 		}})
 	register(command{name: "wait-device", summary: "wait until the device answers HELLO (use --timeout)",
 		run: cmdWaitDevice})
-	for _, n := range []string{"fw info", "fw update", "fw flash", "fw flash-bare", "fw ensure",
+	for _, n := range []string{
 		"fuzz", "soak", "inject", "verify-pcap", "raw stream", "report merge", "schema"} {
 		n := n
 		register(command{name: n, summary: "not implemented yet", run: func(context.Context, *env) (any, error) {

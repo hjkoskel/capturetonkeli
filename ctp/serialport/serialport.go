@@ -41,17 +41,15 @@ const (
 	DonglePID = 0x1001
 )
 
-// SafeOpenSignals is the DTR/RTS state applied right after open so the
-// USB-JTAG auto-reset logic is not triggered (docs/01 risk #1).
-// PROVISIONAL until measured on hardware in M3: DTR=1, RTS=0 is the
-// "run" state of esptool's USB-JTAG reset sequence.
-var SafeOpenSignals = struct{ DTR, RTS bool }{DTR: true, RTS: false}
+// SafeOpenSignals documents the control-line policy on open (docs/01 risk #1).
+// Measured in M3 (Linux, XIAO ESP32-C5): the kernel raises DTR and RTS on
+// open and that does not reset the running app; actively lowering RTS while
+// the ROM loader runs wedged its USB-Serial/JTAG. Policy: never change the
+// lines (same as esptool/pyserial defaults).
+var SafeOpenSignals = struct{ DTR, RTS bool }{DTR: true, RTS: true}
 
-// ApplySafeOpenSignals sets SafeOpenSignals; errors (e.g. on a PTY) are ignored.
-func ApplySafeOpenSignals(p Port) {
-	_ = p.SetRTS(SafeOpenSignals.RTS)
-	_ = p.SetDTR(SafeOpenSignals.DTR)
-}
+// ApplySafeOpenSignals is intentionally a no-op: see SafeOpenSignals.
+func ApplySafeOpenSignals(p Port) {}
 
 // FindDongles lists ports with the dongle VID/PID.
 func FindDongles() ([]Info, error) {

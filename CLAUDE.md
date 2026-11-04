@@ -48,8 +48,8 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 
 ## Firmware / hardware dev loop (docs/06 §6)
 1. Build: `make fw`
-2. Flash: `make flash` (REBOOT 1 → ROM download → write → watchdog reset → wait-device; no buttons needed while CTP firmware runs). If the port is busy: `ctpbench doctor`.
-   - Do **not** use plain `idf.py flash` / esptool's default DTR/RTS reset: on this hardware it wedges the C5 until replugged (docs/10 §3). Recovery: ask the user to replug holding BOOT, then `make flash`.
+2. Flash: `make flash` (= `ctpbench fw flash --manifest firmware/build/manifest.json --yes`: REBOOT 1 → ROM → differential write → MD5 verify → watchdog reset → HELLO; ~5 s if unchanged, ~13 s full). If interrupted, just rerun it. If the port is busy: `ctpbench doctor`.
+   - Do **not** use plain `idf.py flash` / esptool's default DTR/RTS reset, never toggle DTR/RTS, and never send CTP bytes to a chip in ROM mode: each wedged the C5 until replugged (docs/10 §3). Recovery: ask the user to replug (holding BOOT if needed), then `make flash`.
    - The port can move between `/dev/ttyACM0` and `ACM1` after a reset; use `--port auto` (default).
    Release/HIL machines: `ctpbench fw ensure --yes` before testing.
 3. Smoke: `ctpbench info --json`

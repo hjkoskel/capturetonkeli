@@ -3,6 +3,7 @@
 package fwver
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -67,7 +68,8 @@ type Part struct {
 	SHA256 string `json:"sha256"`
 }
 
-// Manifest is fw/manifest.json.
+// Manifest is fw/manifest.json. Version may carry a "-dev"/"-dirty" suffix
+// for development builds (firmware/build/manifest.json).
 type Manifest struct {
 	Version     string      `json:"version"`
 	BuildID     string      `json:"build_id"`
@@ -88,8 +90,62 @@ func LoadManifest(fsys fs.FS, path string) (Manifest, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return m, fmt.Errorf("fwver: %s: %w", path, err)
 	}
-	if _, err := Parse(m.Version); err != nil {
+	if _, err := VersionOf(m.Version); err != nil {
 		return m, err
 	}
 	return m, nil
+}
+
+// SemVer returns the manifest's MAJOR.MINOR.PATCH (pre-release suffix dropped).
+func (m Manifest) SemVer() Version {
+	v, _ := VersionOf(m.Version)
+	return v
+}
+
+// AppDesc is the esp_app_desc_t embedded at the start of an app image.
+type AppDesc struct {
+	Version   string   `json:"version"`
+	Project   string   `json:"project"`
+	Time      string   `json:"time"`
+	Date      string   `json:"date"`
+	IDF       string   `json:"idf"`
+	ELFSHA256 [32]byte `json:"-"`
+}
+
+// BuildID is the first 8 bytes of the app ELF SHA-256 (HELLO fw_build_id).
+func (a AppDesc) BuildID() [8]byte {
+	var b [8]byte
+	copy(b[:], a.ELFSHA256[:8])
+	return b
+}
+
+const appDescMagic = 0xABCD5432
+
+// ParseAppDesc reads esp_app_desc_t from an app image: it follows the
+// 24-byte image header and the 8-byte first segment header.
+func ParseAppDesc(app []byte) (AppDesc, error) {
+	const off = 24 + 8
+	var a AppDesc
+	if len(app) < off+256 || app[0] != 0xE9 {
+		return a, fmt.Errorf("fwver: not an ESP app image")
+	}
+	d := app[off:]
+	if binary.LittleEndian.Uint32(d) != appDescMagic {
+		return a, fmt.Errorf("fwver: app descriptor magic not found")
+	}
+	str := func(b []byte) string { return strings.TrimRight(string(b), "\x00") }
+	a.Version = str(d[16:48])
+	a.Project = str(d[48:80])
+	a.Time = str(d[80:96])
+	a.Date = str(d[96:112])
+	a.IDF = str(d[112:144])
+	copy(a.ELFSHA256[:], d[144:176])
+	return a, nil
+}
+
+// VersionOf parses the semver prefix of an app descriptor version
+// ("0.1.0-dev-dirty" → 0.1.0).
+func VersionOf(s string) (Version, error) {
+	core, _, _ := strings.Cut(s, "-")
+	return Parse(core)
 }

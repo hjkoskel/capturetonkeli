@@ -17,7 +17,7 @@ CC_HOST    ?= cc
 
 CORE_SRC   := firmware/components/ctp_core
 
-.PHONY: fw-synth flash-synth help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
+.PHONY: fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
         hil ci lint go-test vectors ctpbench release serve doctor clean
 
 help:
@@ -154,16 +154,22 @@ fw:
 fw-synth:
 	$(call idf_build,-B build-synth -D SDKCONFIG=build-synth/sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.synth" build,firmware)
 
-flash-synth: ctpbench
-	FW_BUILD=build-synth firmware/tools/flash.sh $(CURDIR)/$(CTPBENCH) $(PORT)
-
 fw-smoke:
 	$(call idf_build,build,firmware/test_apps/idf_api_smoke)
 	python3 firmware/test_apps/idf_api_smoke/gen_smoke.py kconfig firmware/idf-api.txt firmware/test_apps/idf_api_smoke/build/config/sdkconfig.json
 
-# Flashing always runs on the host (docs/07 §7.1). Prefers REBOOT 1 over the
-# DTR/RTS sequence (unreliable on hardware, see docs/10 §3 M3 findings).
+# Flashing always runs on the host (docs/07 §7.1): ctpbench's own ROM flasher
+# (REBOOT 1 → ROM → differential write → MD5 verify → watchdog reset → HELLO).
+# flash-esptool is the fallback using esptool (same REBOOT 1 entry).
 flash: ctpbench
+	$(CTPBENCH) fw manifest --build firmware/build >/dev/null
+	$(CTPBENCH) --port $(PORT) fw flash --manifest firmware/build/manifest.json --yes -v
+
+flash-synth: ctpbench
+	$(CTPBENCH) fw manifest --build firmware/build-synth >/dev/null
+	$(CTPBENCH) --port $(PORT) fw flash --manifest firmware/build-synth/manifest.json --yes -v
+
+flash-esptool: ctpbench
 	firmware/tools/flash.sh $(CURDIR)/$(CTPBENCH) $(PORT)
 
 flash-container:
