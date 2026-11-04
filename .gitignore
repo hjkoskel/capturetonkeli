@@ -1,0 +1,25 @@
+# firmware build output (only sdkconfig.defaults is committed, see docs/10 §1)
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
+firmware/test_apps/*/build/
+firmware/test_apps/*/sdkconfig
+firmware/host/build/
+
+# test bench artifacts
+bench-out/
+
+# local overrides (IDF_PATH etc.)
+local.mk
+
+# Go
+/ctpbench
+*.test
+*.out
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store

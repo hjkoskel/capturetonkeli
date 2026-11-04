@@ -1,0 +1,91 @@
+# Every ESP-IDF symbol / type / enum / Kconfig option the firmware uses (docs/10).
+# Input for test_apps/idf_api_smoke (generated smoke_symbols.c). Add a line before using a new IDF symbol.
+# Format: <kind> <name>     kinds: func | type | field | enum | macro | kconfig | header
+
+# --- headers
+header freertos/FreeRTOS.h
+header esp_wifi.h
+header esp_phy_init.h
+header driver/usb_serial_jtag.h
+header esp_timer.h
+header esp_system.h
+header esp_app_desc.h
+header esp_rom_crc.h
+header esp_task_wdt.h
+
+# --- Wi-Fi
+func esp_wifi_init
+func esp_wifi_set_storage
+func esp_wifi_set_mode
+func esp_wifi_start
+func esp_wifi_set_band_mode
+func esp_wifi_set_channel
+func esp_wifi_set_bandwidth
+func esp_wifi_set_country_code
+func esp_wifi_set_country            # legacy manual range; may be absent → caps.bit2 off (docs/10 §2)
+func esp_wifi_set_ps
+func esp_wifi_set_promiscuous
+func esp_wifi_set_promiscuous_rx_cb
+func esp_wifi_set_promiscuous_filter
+func esp_wifi_set_promiscuous_ctrl_filter
+type wifi_init_config_t
+type wifi_promiscuous_pkt_t
+type wifi_pkt_rx_ctrl_t
+type wifi_promiscuous_filter_t
+type wifi_country_t
+field wifi_init_config_t.nvs_enable
+field wifi_pkt_rx_ctrl_t.rssi
+field wifi_pkt_rx_ctrl_t.rate
+field wifi_pkt_rx_ctrl_t.sig_len
+field wifi_pkt_rx_ctrl_t.rx_state
+field wifi_pkt_rx_ctrl_t.dump_len
+field wifi_pkt_rx_ctrl_t.cur_bb_format
+field wifi_pkt_rx_ctrl_t.channel
+field wifi_pkt_rx_ctrl_t.secondary_channel
+field wifi_pkt_rx_ctrl_t.noise_floor
+field wifi_pkt_rx_ctrl_t.timestamp
+macro WIFI_INIT_CONFIG_DEFAULT
+enum WIFI_STORAGE_RAM
+enum WIFI_MODE_NULL
+enum WIFI_BAND_MODE_2G_ONLY
+enum WIFI_BAND_MODE_5G_ONLY
+enum WIFI_BW20
+enum WIFI_BW40
+enum WIFI_IF_STA
+enum WIFI_PS_NONE
+enum WIFI_SECOND_CHAN_NONE
+macro WIFI_PROMIS_FILTER_MASK_ALL
+macro WIFI_PROMIS_CTRL_FILTER_MASK_ALL
+
+# --- USB Serial/JTAG
+func usb_serial_jtag_driver_install
+func usb_serial_jtag_read_bytes
+func usb_serial_jtag_write_bytes
+func usb_serial_jtag_is_connected
+type usb_serial_jtag_driver_config_t
+
+# --- system
+func esp_timer_get_time
+func esp_restart
+func esp_reset_reason
+func esp_app_get_description
+field esp_app_desc_t.version
+field esp_app_desc_t.idf_ver
+field esp_app_desc_t.app_elf_sha256
+func esp_rom_crc32_le
+func esp_task_wdt_add
+func esp_task_wdt_reset
+func xTaskCreateStatic
+func xQueueCreateStatic
+func xTaskDelayUntil
+func uxTaskGetStackHighWaterMark
+macro __NOINIT_ATTR
+
+# --- Kconfig (must exist; unknown symbols fail the smoke build)
+kconfig CONFIG_ESP_CONSOLE_NONE
+kconfig CONFIG_BOOTLOADER_LOG_LEVEL_NONE
+kconfig CONFIG_ESP_WIFI_NVS_ENABLED
+kconfig CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE
+kconfig CONFIG_APP_REPRODUCIBLE_BUILD
+kconfig CONFIG_ESP_TASK_WDT_EN
+kconfig CONFIG_ESP_BROWNOUT_DET
