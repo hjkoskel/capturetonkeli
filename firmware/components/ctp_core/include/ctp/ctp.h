@@ -75,8 +75,9 @@ typedef struct {
 
 /* One received frame as handed over by the platform callback. */
 typedef struct {
-    const uint8_t *data;  /* 802.11 frame from FC byte 0, incl. FCS */
-    uint16_t len;         /* sig_len (bytes available in data) */
+    const uint8_t *data;  /* 802.11 frame from FC byte 0 (incl. FCS unless no_fcs) */
+    uint16_t len;         /* bytes available in data (= orig_len) */
+    bool no_fcs;          /* data/len exclude the FCS (ESP32-C5) */
     int8_t rssi;
     int8_t noise;
     uint8_t bb_format;

@@ -43,6 +43,10 @@ type Env struct {
 	Trace func(caseID string) func(dir string, h wire.Header, body []byte)
 	// Injector is true when an injector dongle is available (CTP-FLT-RF).
 	Injector bool
+	// TrafficCountry/TrafficChannel: where traffic-dependent cases capture
+	// (default "01"/6). Pick a busy channel on hardware.
+	TrafficCountry string
+	TrafficChannel uint8
 }
 
 // T is the per-case context.
@@ -97,6 +101,24 @@ func (t *T) Session() *Link {
 	t.reset(l)
 	l.Drain()
 	return l
+}
+
+// TrafficChannel selects the configured traffic channel (and its country) on l.
+func (t *T) TrafficChannel(l *Link) uint8 {
+	cc, ch := t.env.TrafficCountry, t.env.TrafficChannel
+	if cc == "" {
+		cc = "01"
+	}
+	if ch == 0 {
+		ch = 6
+	}
+	if _, code, ok := l.Config(t.ctx, wire.TypeSetCountry, wire.MakeCountry(cc, 0, 0, 0).AppendBinary(nil)); !ok || code != 0 {
+		t.Fatalf("traffic country "+cc+" accepted", "check --traffic-country", "ok=%v code=%v", ok, code)
+	}
+	if _, code, ok := l.Config(t.ctx, wire.TypeSetChannel, []byte{ch, 0}); !ok || code != 0 {
+		t.Fatalf(fmt.Sprintf("traffic channel %d accepted", ch), "check --traffic-channel", "ok=%v code=%v", ok, code)
+	}
+	return ch
 }
 
 // Info returns the HELLO info of the last Session.

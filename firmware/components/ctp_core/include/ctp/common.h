@@ -45,6 +45,7 @@ enum {
 #define CTP_PKT_HT40         0x08u
 #define CTP_PKT_AMPDU        0x10u
 #define CTP_PKT_RATE_UNKNOWN 0x20u
+#define CTP_PKT_NO_FCS       0x40u
 
 #define CTP_STATE_SAFE_MODE  0x01u
 

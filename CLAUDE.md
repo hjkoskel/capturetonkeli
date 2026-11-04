@@ -48,10 +48,12 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 
 ## Firmware / hardware dev loop (docs/06 §6)
 1. Build: `make fw`
-2. Flash: `make flash` (or `ctpbench fw flash --manifest firmware/build/manifest.json --yes`). If the port is busy: `ctpbench doctor`.
+2. Flash: `make flash` (REBOOT 1 → ROM download → write → watchdog reset → wait-device; no buttons needed while CTP firmware runs). If the port is busy: `ctpbench doctor`.
+   - Do **not** use plain `idf.py flash` / esptool's default DTR/RTS reset: on this hardware it wedges the C5 until replugged (docs/10 §3). Recovery: ask the user to replug holding BOOT, then `make flash`.
+   - The port can move between `/dev/ttyACM0` and `ACM1` after a reset; use `--port auto` (default).
    Release/HIL machines: `ctpbench fw ensure --yes` before testing.
 3. Smoke: `ctpbench info --json`
-4. Verify: `ctpbench conformance --json --out-dir bench-out/last` (exit 0 = pass)
+4. Verify: `ctpbench conformance --skip CTP-FLT-RF --traffic-country FI --traffic-channel 13 --json --out-dir bench-out/last` (exit 0 = pass; pick a busy channel)
 5. On failure read only `bench-out/last/report.json`; follow each failed case's `hint` and its `.trace.jsonl`.
 6. Performance changes: `ctpbench bench throughput --json --compare-baseline usb`.
 
@@ -64,6 +66,7 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 - `make serve` (static server on localhost; Web Serial/WebUSB work on localhost) or the UI's demo mode ("Try without hardware").
 
 ## Status (2026-11-04)
+- Hardware (M3 partial): flashing via REBOOT 1, full conformance passes on the XIAO C5 (2026-11-04). Findings in docs/10 §2–3, docs/03 rev 3 (`no_fcs`). No HT40 in NULL mode. Weak RSSI (−82…−91 dBm): check the antenna.
 - Done (branch `m0-m2-core`): Go reference (`ctp/` wire, codec, filter, regdom, fwver, sim, client; Linux serialport), conformance suite (39 cases), ctpbench subset, shared vectors + C headers; C core M1/M2 (`ctp_core`), `ctp_fw_host` on a PTY passes conformance; ESP-IDF ports + app build natively; IDF API smoke build.
 - Not yet: ctpbench `fw *`, `bench *`, `fuzz`, `soak`, `inject`; Go `romflash`, `pcapng`, `dot11`, darwin/windows serial; `fw/` bundle + `make release`; web UI; anything needing hardware (M3+).
 - Gates without hardware: `make lint host-test fuzz-short diff-test go-test fw-host-conf fw fw-smoke` (= `make ci`).

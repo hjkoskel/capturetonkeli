@@ -154,13 +154,10 @@ fw-smoke:
 	$(call idf_build,build,firmware/test_apps/idf_api_smoke)
 	python3 firmware/test_apps/idf_api_smoke/gen_smoke.py kconfig firmware/idf-api.txt firmware/test_apps/idf_api_smoke/build/config/sdkconfig.json
 
-# Flashing always runs on the host (docs/07 §7.1).
+# Flashing always runs on the host (docs/07 §7.1). Prefers REBOOT 1 over the
+# DTR/RTS sequence (unreliable on hardware, see docs/10 §3 M3 findings).
 flash: ctpbench
-	@p="$(PORT)"; if [ "$$p" = auto ]; then p=$$($(CTPBENCH) list --json | python3 -c 'import json,sys; d=[x["path"] for x in json.load(sys.stdin)["ports"] if x["is_dongle"]]; print(d[0] if len(d)==1 else "")'); fi; \
-	[ -n "$$p" ] || { echo "flash: need exactly one dongle (or PORT=/dev/ttyACMx)" >&2; exit 3; }; \
-	if [ -n "$(IDF_LOCAL)" ]; then (cd firmware && $(call IDF_NATIVE,-p $$p flash)); \
-	else (cd firmware/build && esptool.py --chip esp32c5 -p $$p write_flash @flash_args); fi || exit 10; \
-	$(CTPBENCH) --port $$p wait-device --timeout 15s
+	firmware/tools/flash.sh $(CURDIR)/$(CTPBENCH) $(PORT)
 
 flash-container:
 	$(CONTAINER) run --rm --userns=keep-id --group-add keep-groups --device $(PORT) \

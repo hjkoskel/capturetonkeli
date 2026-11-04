@@ -462,6 +462,7 @@ var cases = []Case{
 			l := t.Session()
 			s := filter.Set{Rules: []filter.Rule{filter.Beacons(), filter.Ctrl()}, Global: filter.Global{DropFCSErr: true}}
 			body, _ := s.Encode()
+			t.TrafficChannel(l)
 			mustCfg(t, l, wire.TypeSetFilter, body, "")
 			fs := pkts(captureFor(t, l, 1500*time.Millisecond))
 			if len(fs) == 0 {
@@ -489,7 +490,7 @@ var cases = []Case{
 		Hint: "capture.c snaplen/truncation/rx_seq",
 		Run: func(t *T) {
 			l := t.Session()
-			mustCfg(t, l, wire.TypeSetChannel, []byte{6, 0}, "")
+			tch := t.TrafficChannel(l)
 			mustCfg(t, l, wire.TypeSetSnaplen, []byte{64, 0}, "")
 			fs := pkts(captureFor(t, l, 1500*time.Millisecond))
 			if len(fs) == 0 {
@@ -509,8 +510,8 @@ var cases = []Case{
 					t.Fatalf("orig_len ≥ cap_len", "", "%d < %d", m.OrigLen, m.CapLen)
 				case (m.Flags&wire.PktTruncated != 0) != (m.CapLen < m.OrigLen):
 					t.Fatalf("truncated iff cap_len < orig_len", "", "flags %02x cap %d orig %d", m.Flags, m.CapLen, m.OrigLen)
-				case m.Channel != 6:
-					t.Fatalf("channel 6", "", "%d", m.Channel)
+				case m.Channel != tch:
+					t.Fatalf(fmt.Sprintf("channel %d", tch), "", "%d", m.Channel)
 				}
 				if i == 0 && m.RxSeq != 0 {
 					t.Fatalf("rx_seq restarts at 0 on CAPTURE 1", "", "first rx_seq %d", m.RxSeq)
@@ -521,10 +522,11 @@ var cases = []Case{
 				last = m.RxSeq
 			}
 		}},
-	{ID: "CTP-PKT-002", Title: "snaplen 0 delivers full frames incl. FCS", Spec: "doc03 §9",
+	{ID: "CTP-PKT-002", Title: "snaplen 0 delivers full frames (FCS valid unless no_fcs)", Spec: "doc03 §9",
 		Run: func(t *T) {
 			l := t.Session()
-			fs := pkts(captureFor(t, l, 1000*time.Millisecond))
+			t.TrafficChannel(l)
+			fs := pkts(captureFor(t, l, 1500*time.Millisecond))
 			if len(fs) == 0 {
 				t.Skip("no traffic captured")
 			}
@@ -533,7 +535,7 @@ var cases = []Case{
 				if m.OrigLen <= wire.MaxCapLen && m.CapLen != m.OrigLen {
 					t.Fatalf("cap_len == orig_len", "", "%d != %d", m.CapLen, m.OrigLen)
 				}
-				if m.Flags&wire.PktFCSErr == 0 && m.CapLen == m.OrigLen && m.CapLen >= 4 {
+				if m.Flags&(wire.PktFCSErr|wire.PktNoFCS) == 0 && m.CapLen == m.OrigLen && m.CapLen >= 4 {
 					n := len(data) - 4
 					if codec.CRC32(data[:n]) != binary.LittleEndian.Uint32(data[n:]) {
 						t.Fatalf("FCS valid when fcs_err clear", "capture.c must copy sig_len bytes incl. FCS", "frame % x", data[:min(len(data), 32)])

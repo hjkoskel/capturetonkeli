@@ -67,6 +67,9 @@ void ctp_capture_rx(ctp_t *c, const ctp_rx_t *rx)
     if (rx->rate_unknown) {
         flags |= CTP_PKT_RATE_UNKNOWN;
     }
+    if (rx->no_fcs) {
+        flags |= CTP_PKT_NO_FCS;
+    }
     const ctp_pkt_meta_t m = {.ts_us = rx->ts_us, .channel = rx->channel, .flags = (uint8_t)flags, .rssi = rx->rssi,
                               .noise = rx->noise, .rate = rx->rate, .bb_format = rx->bb_format,
                               .orig_len = rx->len, .cap_len = (uint16_t)cap, .rx_seq = seq};

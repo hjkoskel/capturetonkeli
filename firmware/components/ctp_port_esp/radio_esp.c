@@ -92,23 +92,14 @@ ctp_err_t ctk_radio_set_channel(uint8_t ch, ctp_bw_t bw, ctp_bw_t *applied)
     if (e != ESP_OK) {
         return radio_err(e, CTP_E_RADIO);
     }
-    wifi_second_chan_t second = WIFI_SECOND_CHAN_NONE;
-    ctp_bw_t a = CTP_BW20;
+    /* HT40 is not offered (caps.HT40 = 0): in WIFI_MODE_NULL the driver
+     * rejects every STA protocol/bandwidth setting with ESP_ERR_INVALID_ARG
+     * (M3 finding, docs/10 §2). The core never calls this with bw != 20. */
     if (bw != CTP_BW20) {
-        /* Open question (docs/10 §2): bandwidth in NULL mode. Fall back to HT20
-         * and report it in the readback if the driver refuses. */
-        if (esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW40) == ESP_OK) {
-            if (five) {
-                const uint32_t idx = (ch >= 149u) ? ((uint32_t)ch - 149u) / 4u : ((uint32_t)ch - 36u) / 4u;
-                a = ((idx % 2u) == 0u) ? CTP_BW40_PLUS : CTP_BW40_MINUS;
-            } else {
-                a = bw;
-                second = (bw == CTP_BW40_PLUS) ? WIFI_SECOND_CHAN_ABOVE : WIFI_SECOND_CHAN_BELOW;
-            }
-        }
-    } else {
-        (void)esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW20);
+        return radio_err(ESP_ERR_NOT_SUPPORTED, CTP_E_NOT_SUPPORTED);
     }
+    const wifi_second_chan_t second = WIFI_SECOND_CHAN_NONE;
+    const ctp_bw_t a = CTP_BW20;
     e = esp_wifi_set_channel(ch, second);
     if (e != ESP_OK) {
         return radio_err(e, CTP_E_CHANNEL_NOT_ALLOWED);

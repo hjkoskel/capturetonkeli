@@ -11,6 +11,8 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
+#include "soc/lp_aon_reg.h"
+#include "soc/soc.h"
 
 #include "ctp_port_esp.h"
 
@@ -81,7 +83,7 @@ void ctk_sys_boot_info(ctp_boot_info_t *boot)
     boot->fw_version = parse_version(d->version, &boot->fw_flags);
     memcpy(boot->build_id, d->app_elf_sha256, sizeof boot->build_id);
     (void)esp_read_mac(boot->mac, ESP_MAC_WIFI_STA);
-    boot->caps = CTP_CAP_5GHZ | CTP_CAP_HT40;
+    boot->caps = CTP_CAP_5GHZ; /* no HT40 in NULL mode (docs/10 §2, M3) */
     if (ctk_radio_manual_country_supported()) {
         boot->caps |= CTP_CAP_MANUAL_COUNTRY;
     }
@@ -154,12 +156,14 @@ void ctk_sys_reboot(ctp_reboot_mode_t mode)
         s_noinit.crash_count = 0u;
         esp_restart();
     }
-    /* Download mode is entered by the host's USB-JTAG DTR/RTS reset sequence
-     * (docs/10 §3). Stop the radio and idle; never touch the USB PHY. */
+    /* REBOOT 1 (docs/10 §3, verified in M3): force ROM "download boot0"
+     * (UART/USB-Serial-JTAG) for the next boot, then software-reset. This
+     * avoids the host DTR/RTS sequence, which proved unreliable on hardware.
+     * The USB PHY is not touched. */
     (void)esp_wifi_set_promiscuous(false);
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
+    s_noinit.crash_count = 0u;
+    REG_SET_FIELD(LP_AON_SYS_CFG_REG, LP_AON_FORCE_DOWNLOAD_BOOT, 1u);
+    esp_restart();
 }
 
 void ctk_sys_ctrl_notify(void)

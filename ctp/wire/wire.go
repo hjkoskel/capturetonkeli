@@ -231,6 +231,7 @@ const (
 	PktHT40        uint8 = 1 << 3
 	PktAMPDU       uint8 = 1 << 4
 	PktRateUnknown uint8 = 1 << 5
+	PktNoFCS       uint8 = 1 << 6 // data/orig_len exclude the FCS (docs/03 §9 rev 3)
 )
 
 // bb_format values (C5 rx_ctrl.cur_bb_format).

@@ -13,6 +13,7 @@ SPECIAL = {
     "WIFI_INIT_CONFIG_DEFAULT": "{ wifi_init_config_t c = WIFI_INIT_CONFIG_DEFAULT(); (void)c; }",
     "__NOINIT_ATTR": None,  # attribute: emitted at file scope
     "IRAM_ATTR": None,
+    "REG_SET_FIELD": None,  # function-like; exercised by sys_esp.c
     "xTaskNotifyGive": "(void)xTaskNotifyGive((TaskHandle_t)0);",
     "ulTaskNotifyTake": "(void)ulTaskNotifyTake(pdTRUE, 0);",
 }

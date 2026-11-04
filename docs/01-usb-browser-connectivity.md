@@ -31,7 +31,9 @@
 
 ## Open risks to test on hardware
 1. DTR/RTS toggling on port open can trigger USJ auto-reset/download-mode → set signals explicitly after open, test on each OS.
+   - *M3, Linux:* opening with DTR=1/RTS=0 does not reset the C5 (uptime continues across opens). The DTR/RTS reset-into-bootloader sequence is unreliable (see doc 10 §3); use `REBOOT 1`. macOS/Windows/Android still to test.
 2. Real sustained USJ throughput on C5 and CPU cost of feeding it while promiscuous callback runs.
+   - *M3:* PING RTT over USJ: median 0.8 ms, p99 1.2 ms (Linux, idle). Throughput bench still to do.
 3. Android OTG power budget and whether Chrome's WebUSB picker shows 303A:1001 on target phones.
 
 ## Sources

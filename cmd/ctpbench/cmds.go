@@ -192,16 +192,21 @@ func init() {
 	register(command{name: "raw send", summary: "send TYPE BODYHEX, print responses", example: "ctpbench raw send 0x02 01000000",
 		flags: func(fs *flag.FlagSet) { fs.UintVar(&rawID, "req-id", 0x7123, "req_id") },
 		run:   func(ctx context.Context, e *env) (any, error) { return cmdRawSend(ctx, e, uint16(rawID)) }})
-	var crun, cskip string
+	var crun, cskip, tcc string
 	var clist bool
+	var tch uint
 	register(command{name: "conformance", summary: "protocol conformance suite (docs/06 §4)",
 		example: "ctpbench --port /dev/pts/5 conformance --skip 'CTP-(FLT-RF|LIVE-RTT)' --out-dir bench-out/last",
 		flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&crun, "run", "", "regex of case IDs to run")
 			fs.StringVar(&cskip, "skip", "", "regex of case IDs to skip")
 			fs.BoolVar(&clist, "list", false, "list cases (no device)")
+			fs.StringVar(&tcc, "traffic-country", "01", "country for traffic-dependent cases")
+			fs.UintVar(&tch, "traffic-channel", 6, "busy channel for traffic-dependent cases")
 		},
-		run: func(ctx context.Context, e *env) (any, error) { return cmdConformance(ctx, e, crun, cskip, clist) }})
+		run: func(ctx context.Context, e *env) (any, error) {
+			return cmdConformance(ctx, e, crun, cskip, clist, tcc, uint8(tch))
+		}})
 	var simPTY bool
 	var simTCP string
 	var simLink string
@@ -461,7 +466,7 @@ loop:
 			}
 			if pf != nil {
 				json.NewEncoder(pf).Encode(map[string]any{"ts_us": p.TsUS, "ch": p.Channel, "rssi": p.RSSI, "orig_len": p.OrigLen, "cap_len": p.CapLen,
-					"flags": p.Flags, "rx_seq": p.RxSeq, "cfg_gen": p.CfgGen, "type": frameType(p.Data), "hex": hex.EncodeToString(p.Data)})
+					"flags": p.Flags, "rate": p.Rate, "bb_format": p.BBFormat, "noise": p.Noise, "rx_seq": p.RxSeq, "cfg_gen": p.CfgGen, "type": frameType(p.Data), "hex": hex.EncodeToString(p.Data)})
 			}
 		case <-deadline:
 			break loop
@@ -610,7 +615,7 @@ type junitMsg struct {
 	Message string `xml:"message,attr"`
 }
 
-func cmdConformance(ctx context.Context, e *env, runRe, skipRe string, list bool) (any, error) {
+func cmdConformance(ctx context.Context, e *env, runRe, skipRe string, list bool, tcc string, tch uint8) (any, error) {
 	if list {
 		type item struct{ ID, Title, Spec string }
 		var out []item
@@ -651,7 +656,9 @@ func cmdConformance(ctx context.Context, e *env, runRe, skipRe string, list bool
 	}
 	var traceMu sync.Mutex
 	env := conformance.Env{
-		Open: e.openRaw,
+		Open:           e.openRaw,
+		TrafficCountry: tcc,
+		TrafficChannel: tch,
 		Trace: func(id string) func(string, wire.Header, []byte) {
 			f, err := os.OpenFile(filepath.Join(dir, id+".trace.jsonl"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 			if err != nil {

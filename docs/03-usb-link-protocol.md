@@ -1,6 +1,6 @@
 # 03 – USB link protocol "CTP" (capturetonkeli protocol) – draft v1, rev 2 (2026-11-04)
 
-> Rev 2: normative body layouts, error codes and reset reasons (§6.1); PKT `sig_mode` → `bb_format` (§9). Nothing has shipped yet, so this stays protocol `ver` 1 and needs no firmware version bump.
+> Rev 3: PKT flag bit6 `no_fcs` (§9). Rev 2: normative body layouts, error codes and reset reasons (§6.1); PKT `sig_mode` → `bb_format` (§9). Nothing has shipped yet, so this stays protocol `ver` 1 and needs no firmware version bump.
 
 Scope: the byte protocol between the dongle (XIAO ESP32-C5, USB Serial/JTAG CDC-ACM) and the browser (Web Serial on desktop, WebUSB CDC shim on Android).
 One channel at a time; the host changes it by command.
@@ -237,7 +237,7 @@ The host adds its own: seq gaps, CRC errors, overruns. The UI shows them so the 
 off size field
 0   8    ts_us       device µs (esp_timer, 64-bit: no wrap handling needed)
 8   1    channel
-9   1    flags       bit0 fcs_err, bit1 truncated, bit2 5GHz, bit3 HT40, bit4 ampdu, bit5 rate_unknown
+9   1    flags       bit0 fcs_err, bit1 truncated, bit2 5GHz, bit3 HT40, bit4 ampdu, bit5 rate_unknown, bit6 no_fcs
 10  1    rssi        (i8, dBm)
 11  1    noise_floor (i8, dBm)
 12  1    rate        bb_format 0/1 (legacy): rate in 500 kb/s units (2 = 1 Mb/s … 108 = 54 Mb/s);
@@ -250,7 +250,8 @@ off size field
 20  …    data[cap_len]
 ```
 - *Rev 2 (doc 08 A1):* `sig_mode` was replaced by `bb_format`, because the C5 (Wi-Fi MAC v3) reports `cur_bb_format` and gives a legacy rate only for 11b/11g frames. The firmware converts the raw rx_ctrl rate code to 500 kb/s units (core function, unit-tested); the MCS of HT/VHT/HE frames is extracted from the SIG fields once M4 confirms the bit layout, until then `rate_unknown` is set for those formats.
-- `data` holds the first `cap_len` bytes of the frame including the FCS; the FCS is present in `data` iff `cap_len == orig_len`.
+- `data` holds the first `cap_len` bytes of the frame. Without `no_fcs`, `orig_len` includes the 4-byte FCS and the FCS is present in `data` iff `cap_len == orig_len`. With `no_fcs` (rev 3), the device does not have the FCS: `orig_len` and `data` exclude it (filters' `len_min`/`len_max` then also compare against the length without FCS).
+- *Rev 3 (M3 hardware finding):* the ESP32-C5 driver (IDF v6.0.2) delivers the MPDU without a valid FCS: the last 4 bytes counted by `rx_ctrl.sig_len` are driver data, and `dump_len` = `sig_len` + 4. The firmware therefore strips them and always sets `no_fcs`. The simulator and host fake radio still deliver FCS frames, so both paths stay tested.
 - `cap_len ≤ min(snaplen or ∞, 4096)`; `truncated` is set iff `cap_len < orig_len`.
 - `rx_seq` restarts at 0 on every CAPTURE 0→1 transition.
 Total overhead per captured frame: 8 hdr + 20 pkt + 4 CRC + COBS (~1 + 1 per 254) + delimiter ≈ **35 bytes**. Fine against typical 100–1500 B frames. With snaplen 32 the frame is ~67 B; FS USB then carries roughly 10–15k frames/s.
