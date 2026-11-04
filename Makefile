@@ -17,7 +17,7 @@ CC_HOST    ?= cc
 
 CORE_SRC   := firmware/components/ctp_core
 
-.PHONY: help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
+.PHONY: fw-synth flash-synth help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
         hil ci lint go-test vectors ctpbench release serve doctor clean
 
 help:
@@ -149,6 +149,13 @@ endef
 
 fw:
 	$(call idf_build,build,firmware)
+
+# Throughput test variant (synthetic frames, no radio): separate build dir + sdkconfig.
+fw-synth:
+	$(call idf_build,-B build-synth -D SDKCONFIG=build-synth/sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.synth" build,firmware)
+
+flash-synth: ctpbench
+	FW_BUILD=build-synth firmware/tools/flash.sh $(CURDIR)/$(CTPBENCH) $(PORT)
 
 fw-smoke:
 	$(call idf_build,build,firmware/test_apps/idf_api_smoke)

@@ -24,12 +24,18 @@
 #define CTP_RING_SIZE (96u * 1024u)
 #endif
 #define CTP_TX_BUF       4608u  /* ≥ one max PKT frame; docs/07 §3 said 2 KB, revisited in M3 */
+/* Max PKT bytes per batch: bounds how much packet data can sit ahead of a
+ * control response (RTT under load, docs/03 §5). One larger frame may exceed it. */
+#ifndef CTP_TX_BATCH
+#define CTP_TX_BATCH     512u
+#endif
 #define CTP_RX_CHUNK     512u
 #define CTP_REQ_SLOTS    4u
 #define CTP_REQ_BODY_MAX 2400u  /* > max SET_FILTER (2328); longer bodies are truncated (flagged) */
 #define CTP_OUT_SLOTS    8u
 #define CTP_OUT_BODY_MAX 208u   /* largest: EVT_LOG 201 */
 #define CTP_WATCHDOG_MS  2000u
+#define CTP_TX_STALL_MS  250u  /* drop a TX batch that makes no progress this long */
 #define CTP_STATS_US     1000000u
 
 CTP_STATIC_ASSERT(CTP_RING_SIZE <= 128u * 1024u, "packet ring ≤ 128 KB (docs/07 §3)");
@@ -127,6 +133,7 @@ typedef struct {
     bool first_tx;
     uint32_t tx_len;
     uint32_t tx_off;
+    uint32_t tx_progress_ms; /* last time usb_write made progress */
     uint8_t txbuf[CTP_TX_BUF];
     uint8_t rxbuf[CTP_RX_CHUNK];
     uint32_t rx_len; /* bytes in rxbuf */

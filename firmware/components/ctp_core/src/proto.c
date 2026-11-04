@@ -435,7 +435,13 @@ void ctp_link_step(ctp_t *c)
      * the USB FIFO, which flow-controls the host) while the request queue is full. */
     if (!q_full(&c->reqq, CTP_REQ_SLOTS)) {
         if (c->rx_off >= c->rx_len) {
-            const int32_t n = c->port->usb_read(c->rxbuf, CTP_RX_CHUNK, 1u);
+            /* block ≤1 ms only when idle; poll while TX work is pending, or
+             * the read timeout would cap throughput at one batch per ms */
+            uint32_t plen = 0u;
+            const bool busy = !q_empty(&c->outq) || c->tx_off < c->tx_len ||
+                              (atomic_load_explicit(&c->session, memory_order_acquire) &&
+                               ctp_ring_peek(&c->ring, &plen) != NULL);
+            const int32_t n = c->port->usb_read(c->rxbuf, CTP_RX_CHUNK, busy ? 0u : 1u);
             c->rx_len = (n > 0) ? (uint32_t)n : 0u;
             c->rx_off = 0u;
         }
@@ -449,14 +455,19 @@ void ctp_link_step(ctp_t *c)
     if (atomic_exchange_explicit(&c->flush_req, false, memory_order_acq_rel)) {
         ctp_ring_flush(&c->ring);
     }
-    /* finish a partial write first */
+    /* finish a partial write first; a host that stops reading must never
+     * wedge the link (drop the batch after CTP_TX_STALL_MS, host sees a seq gap) */
     if (c->tx_off < c->tx_len) {
         const int32_t w = c->port->usb_write(&c->txbuf[c->tx_off], c->tx_len - c->tx_off, 5u);
         if (w > 0) {
             c->tx_off += (uint32_t)w;
+            c->tx_progress_ms = now_ms(c);
         }
         if (c->tx_off < c->tx_len) {
-            return;
+            if ((uint32_t)(now_ms(c) - c->tx_progress_ms) <= CTP_TX_STALL_MS) {
+                return;
+            }
+            /* stalled: fall through, the batch is discarded below */
         }
     }
     c->tx_len = 0u;
@@ -474,7 +485,7 @@ void ctp_link_step(ctp_t *c)
     if (q_empty(&c->outq)) {
         uint32_t len = 0u;
         const uint8_t *rec;
-        while ((rec = ctp_ring_peek(&c->ring, &len)) != NULL) {
+        while (c->tx_len < CTP_TX_BATCH && (rec = ctp_ring_peek(&c->ring, &len)) != NULL) {
             if (!session) {
                 ctp_ring_release(&c->ring); /* stale packets never leave without a session */
                 continue;
@@ -489,6 +500,7 @@ void ctp_link_step(ctp_t *c)
         }
     }
     if (c->tx_len > 1u) {
+        c->tx_progress_ms = now_ms(c);
         const int32_t w = c->port->usb_write(c->txbuf, c->tx_len, 5u);
         c->tx_off = (w > 0) ? (uint32_t)w : 0u;
     } else {

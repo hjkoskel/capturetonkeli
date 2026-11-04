@@ -1,0 +1,19 @@
+menu "capturetonkeli"
+
+config CTK_SYNTHETIC_TRAFFIC
+    bool "Throughput test variant: synthetic frames instead of the radio (M3)"
+    default n
+    help
+        Test-only firmware variant (docs/07 M3). The radio is not started; a
+        low-priority task feeds synthetic 802.11 frames into the normal
+        capture path (filter, snaplen, ring, link task) as fast as the ring
+        accepts them, so `ctpbench bench throughput` measures the USB link.
+        caps advertise no 5 GHz. Never enable in release builds.
+
+config CTK_SYNTH_FRAME_LEN
+    int "Synthetic frame length incl. header (bytes)"
+    depends on CTK_SYNTHETIC_TRAFFIC
+    range 24 4096
+    default 1500
+
+endmenu

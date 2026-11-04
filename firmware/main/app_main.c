@@ -2,6 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_task_wdt.h"
+#include "sdkconfig.h"
 
 #include "ctp/ctp.h"
 #include "ctp_port_esp.h"
@@ -57,9 +58,18 @@ void app_main(void)
 {
     ctp_boot_info_t boot;
     ctk_sys_boot_info(&boot);
+#if CONFIG_CTK_SYNTHETIC_TRAFFIC
+    boot.caps = 0u; /* test variant: no radio, synthetic frames (docs/07 M3) */
+    const bool radio = false;
+#else
+    const bool radio = !boot.safe_mode;
+#endif
     ctk_usb_init();
     ctp_init(&s_core, &s_port, &boot);
-    ctk_radio_init(&s_core, !boot.safe_mode);
+    ctk_radio_init(&s_core, radio);
+#if CONFIG_CTK_SYNTHETIC_TRAFFIC
+    ctk_synth_start(&s_core);
+#endif
     TaskHandle_t ctrl = xTaskCreateStatic(ctrl_task, "ctp_ctrl", CTRL_STACK, NULL, CTRL_PRIO, s_ctrl_stack, &s_ctrl_tcb);
     ctk_sys_set_ctrl_task(ctrl);
     (void)xTaskCreateStatic(link_task, "ctp_link", LINK_STACK, NULL, LINK_PRIO, s_link_stack, &s_link_tcb);

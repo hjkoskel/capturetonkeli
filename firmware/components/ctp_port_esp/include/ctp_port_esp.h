@@ -21,6 +21,9 @@ bool ctk_radio_manual_country_supported(void);
 /* cb_esp.c */
 void ctk_cb_attach(ctp_t *core);
 
+/* synth_esp.c (CONFIG_CTK_SYNTHETIC_TRAFFIC only) */
+void ctk_synth_start(ctp_t *core);
+
 /* sys_esp.c */
 void ctk_sys_boot_info(ctp_boot_info_t *boot);
 void ctk_sys_set_ctrl_task(void *task_handle);

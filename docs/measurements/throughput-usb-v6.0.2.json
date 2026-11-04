@@ -1,0 +1,105 @@
+{
+  "device": {
+    "build_id": "dc533006f6463a61",
+    "caps": null,
+    "device_time_us": 2330208,
+    "fw_flags": [
+      "dev"
+    ],
+    "fw_version": "0.1.0",
+    "mac": "10:bd:a3:c8:3c:c8",
+    "max_frame": 4128,
+    "max_rules": 16,
+    "proto_ver": 1,
+    "reset_reason": "POWER_ON",
+    "safe_mode": false
+  },
+  "host": {
+    "arch": "amd64",
+    "ctpbench": "v0.0.0-20261104130056-b651327f18a1+dirty",
+    "go": "go1.27.1-X:nodwarf5",
+    "os": "linux"
+  },
+  "rows": [
+    {
+      "snaplen": 32,
+      "pkt_per_s": 14582.336777155304,
+      "payload_Bps": 466634.7768689697,
+      "wire_Bps": 962434.22729225,
+      "rx_total": 253100,
+      "drop_ring": 178619,
+      "drop_ring_pct": 70.57250098775188,
+      "host_lost": 0,
+      "ring_high_water_max": 99,
+      "latency_ms": {
+        "max": 123.944,
+        "median": 121.419,
+        "min": 2.339,
+        "p95": 123.231,
+        "p99": 123.537
+      },
+      "packets": 72913,
+      "duration_s": 5.000090254
+    },
+    {
+      "snaplen": 128,
+      "pkt_per_s": 5941.393610625311,
+      "payload_Bps": 760498.3821600399,
+      "wire_Bps": 962505.7649213005,
+      "rx_total": 252864,
+      "drop_ring": 222556,
+      "drop_ring_pct": 88.01411035180966,
+      "host_lost": 0,
+      "ring_high_water_max": 99,
+      "latency_ms": {
+        "max": 118.034,
+        "median": 115.37,
+        "min": 3.942,
+        "p95": 117.562,
+        "p99": 117.833
+      },
+      "packets": 29707,
+      "duration_s": 5.000005377
+    },
+    {
+      "snaplen": 512,
+      "pkt_per_s": 1758.361412055468,
+      "payload_Bps": 900281.0429723996,
+      "wire_Bps": 961823.692394341,
+      "rx_total": 316096,
+      "drop_ring": 307131,
+      "drop_ring_pct": 97.16383630289532,
+      "host_lost": 0,
+      "ring_high_water_max": 99,
+      "latency_ms": {
+        "max": 112.39,
+        "median": 111.747,
+        "min": 10.31,
+        "p95": 112.201,
+        "p99": 112.307
+      },
+      "packets": 8792,
+      "duration_s": 5.000109727
+    },
+    {
+      "snaplen": 1500,
+      "pkt_per_s": 624.7981558457632,
+      "payload_Bps": 937197.2337686449,
+      "wire_Bps": 961564.3618466296,
+      "rx_total": 320064,
+      "drop_ring": 316879,
+      "drop_ring_pct": 99.00488652269546,
+      "host_lost": 0,
+      "ring_high_water_max": 99,
+      "latency_ms": {
+        "max": 110.366,
+        "median": 109.811,
+        "min": 26.634,
+        "p95": 110.281,
+        "p99": 110.361
+      },
+      "packets": 3124,
+      "duration_s": 5.000014758
+    }
+  ]
+}

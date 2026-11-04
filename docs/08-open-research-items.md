@@ -36,6 +36,10 @@ Items already scheduled in doc 07 milestones (USB throughput, DTR/RTS, channel m
 - The kit includes a 2.4 GHz FPC antenna on the U.FL connector. For real 5 GHz capture a **dual-band U.FL antenna** is needed.
 - **Research/spike:** pick 2–3 dual-band U.FL antennas (FPC and small rod) and compare RSSI on ch 36/149 vs the stock antenna. Also include the antenna in the enclosure design (§C1).
 
+### A5. HT40 capture on the C5 ⏸ postponed (decided 2026-11-04)
+- M3 finding: in `WIFI_MODE_NULL`, IDF v6.0.2 rejects every STA bandwidth/protocol call (`esp_wifi_set_bandwidth`, `esp_wifi_set_bandwidths`, `esp_wifi_set_protocols` → `ESP_ERR_INVALID_ARG`). v1 firmware therefore clears `caps.HT40`.
+- HT40 is believed to be achievable (e.g. idle `WIFI_MODE_STA` with 11n-only protocols, or another API path). Postponed: revisit after M5. Check that nothing is transmitted in the chosen mode and what PPDU formats are lost while in HT40.
+
 ---
 
 ## B. Desk research still to do (hours each)

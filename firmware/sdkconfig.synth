@@ -1,0 +1,2 @@
+# Throughput test variant (docs/07 M3): make fw-synth
+CONFIG_CTK_SYNTHETIC_TRAFFIC=y

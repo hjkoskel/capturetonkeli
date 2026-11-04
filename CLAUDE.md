@@ -55,7 +55,7 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 3. Smoke: `ctpbench info --json`
 4. Verify: `ctpbench conformance --skip CTP-FLT-RF --traffic-country FI --traffic-channel 13 --json --out-dir bench-out/last` (exit 0 = pass; pick a busy channel)
 5. On failure read only `bench-out/last/report.json`; follow each failed case's `hint` and its `.trace.jsonl`.
-6. Performance changes: `ctpbench bench throughput --json --compare-baseline usb`.
+6. Performance changes: `make fw-synth flash-synth` (synthetic-traffic variant, no radio), then `ctpbench bench throughput --json --compare-baseline usb` and `ctpbench bench rtt-under-load`; reflash the normal build with `make fw flash` afterwards. Baseline copy: docs/measurements/throughput-usb-v6.0.2.json (bench-out/ is git-ignored).
 
 - Without hardware use `--port sim` (the Go simulator is the reference behaviour) or `make fw-host-conf` (real firmware core on a PTY).
 - Exit code 9 = firmware MAJOR.MINOR mismatch: **never** pass `--allow-fw-mismatch` on your own; update the dongle or ask the user.

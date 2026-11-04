@@ -122,7 +122,7 @@ Errors from the port carry the raw platform code (`esp_err_t` on target), which 
 |---|---|
 | Packet ring | 96 KB (tunable, `_Static_assert` ≤ 128 KB) |
 | RX frame buffer + COBS scratch | 2 × 4.2 KB |
-| TX buffer | 4.5 KB (`CTP_TX_BUF` 4608: must hold one max-size PKT frame; the 2 KB first estimate could not; re-tuned in M3) |
+| TX buffer | 4.5 KB (`CTP_TX_BUF` 4608: holds one max-size PKT frame). M3: packet batches are capped at 512 B (`CTP_TX_BATCH`) and the USJ driver TX buffer is 1 KB, so ≤ ~1.5 KB sits ahead of a control response (PING p99 3 ms at full load). A batch that cannot be written for 250 ms is dropped so a stalled host never wedges the link |
 | Filter slots (compiled) | 2 × ~2.4 KB |
 | Ctrl queues | out: 8 × 208 B (largest body EVT_LOG 201 B); requests: 4 × 2.4 KB (max SET_FILTER 2328 B). Full request queue → the link stops reading USB (back-pressure), so bursts are never dropped |
 | Task stacks | link 4 KB, ctrl 4 KB (verified by high-water mark reporting) |
@@ -195,6 +195,8 @@ Each stage ends with a **gate**: concrete commands whose exit code 0 means done.
 - **ROM flasher bring-up:** `ctpbench fw flash-bare` and `fw update` (Go `romflash`) and the web flows A/B/C against real hardware. Verify the USB-JTAG DTR/RTS reset-into-bootloader sequence on Linux/macOS/Windows/Android, re-enumeration handling, MD5 per sector, and the differential sector count.
 - **Gate:** `ctpbench bench throughput --save-baseline usb` recorded; doc 01/03 updated with measured numbers; `wait-device` works after flash; `ctpbench fw flash-bare --yes` brings a factory-fresh XIAO C5 to a HELLO-answering state; `fw update` on an unchanged image writes 0 sectors.
 
+*M3 status (2026-11-04):* throughput baseline recorded (`make fw-synth flash-synth` + `ctpbench bench throughput --save-baseline usb`); flashing via REBOOT 1 verified (doc 10 §3); DTR/RTS safe-open verified on Linux. Open: macOS/Windows/Android, `fw update`/`flash-bare` (Go romflash), web flows.
+
 ### M4 – Radio bring-up
 - `radio_esp.c`: NULL-mode init, promiscuous on/off, band switching, channel/bw, country (validated + manual), driver masks.
 - Determine:
@@ -204,6 +206,8 @@ Each stage ends with a **gate**: concrete commands whose exit code 0 means done.
   - `rx_ctrl` field mapping (rate, sig_mode, noise floor, timestamp source).
 - Measure the callback rate on a busy channel; verify the callback stays within its time budget (cycle counter).
 - **Gate:** channel-map report committed as `docs/measurements/channel-map-<idf>.json`; on-target unit tests (`test_apps/target_unit`) pass.
+
+*M4 status (2026-11-04):* channel map committed (`docs/measurements/channel-map-v6.0.2.json`), channel-switch latency measured, rx_ctrl mapping partly done (FCS absent → `no_fcs`; legacy rate mapping implemented, MCS pending). Open: frame-type misreport check, callback cycle budget, on-target unit tests.
 
 ### M5 – Integration on hardware
 - Full pipeline: callback → filter → ring → link task → host. HELLO gating, watchdog, cfg_gen, EVT_STATS, reboot modes, safe mode, RAM-only country (flash-write counter stays 0).

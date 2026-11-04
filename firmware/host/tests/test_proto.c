@@ -16,10 +16,17 @@ static uint32_t s_out_len;
 static uint64_t s_now;
 static int s_reboots;
 static uint8_t s_chan;
+static bool s_usb_blocked;
 
 static int32_t m_write(const uint8_t *b, uint32_t len, uint32_t t)
 {
     (void)t;
+    if (s_usb_blocked) {
+        return 0;
+    }
+    if (len > 100u) {
+        len = 100u; /* partial writes, like the USJ port */
+    }
     if (s_out_len + len > sizeof s_out) {
         len = (uint32_t)sizeof s_out - s_out_len;
     }
@@ -98,6 +105,7 @@ static void reset(void)
     s_in_len = s_in_off = s_out_len = 0u;
     s_now = 1000000u;
     s_reboots = 0;
+    s_usb_blocked = false;
     ctp_boot_info_t boot;
     memset(&boot, 0, sizeof boot);
     boot.fw_version = 0x00010000u;
@@ -245,8 +253,26 @@ static void test_filter_publish(void)
     TEST_ASSERT_EQUAL_UINT32(1u, atomic_load(&s_c.active_filter));
 }
 
+static void test_stalled_host_does_not_wedge_link(void)
+{
+    reset();
+    s_usb_blocked = true; /* host stops reading */
+    const uint8_t ping[4] = {1, 0, 0, 0};
+    send(CTP_T_PING, 50u, ping, 4u);
+    pump(2);
+    s_now += 300000u; /* > CTP_TX_STALL_MS */
+    pump(1);
+    s_usb_blocked = false;
+    const uint8_t rb[1] = {0};
+    send(CTP_T_REBOOT, 51u, rb, 1u);
+    pump(3);
+    TEST_ASSERT_TRUE(find(51u) >= 0);
+    TEST_ASSERT_EQUAL_INT(1, s_reboots);
+}
+
 void run_proto_tests(void)
 {
+    RUN_TEST(test_stalled_host_does_not_wedge_link);
     RUN_TEST(test_boot_reset_event);
     RUN_TEST(test_hello_ping_config);
     RUN_TEST(test_capture_needs_session_and_watchdog);

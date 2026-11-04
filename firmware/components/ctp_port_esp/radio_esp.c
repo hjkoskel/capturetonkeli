@@ -10,6 +10,7 @@
 
 static int32_t s_last_err;
 static ctp_t *s_core;
+static bool s_radio_on; /* false: safe mode or synthetic-traffic variant */
 
 static ctp_err_t radio_err(esp_err_t e, ctp_err_t mapped)
 {
@@ -20,6 +21,7 @@ static ctp_err_t radio_err(esp_err_t e, ctp_err_t mapped)
 void ctk_radio_init(ctp_t *core, bool start_radio)
 {
     s_core = core;
+    s_radio_on = start_radio;
     if (!start_radio) {
         return; /* safe mode: radio stays off (docs/07 §4) */
     }
@@ -53,6 +55,11 @@ bool ctk_radio_manual_country_supported(void)
 
 ctp_err_t ctk_radio_set_country(ctp_country_t *c)
 {
+    if (!s_radio_on) { /* accept in RAM only (synthetic variant; safe mode never gets here) */
+        c->schan = 1u;
+        c->nchan = 13u;
+        return CTP_OK;
+    }
     esp_err_t e;
     if (c->mode == 0u) {
         const char cc[3] = {c->cc[0], c->cc[1], '\0'};
@@ -86,6 +93,10 @@ ctp_err_t ctk_radio_set_country(ctp_country_t *c)
 
 ctp_err_t ctk_radio_set_channel(uint8_t ch, ctp_bw_t bw, ctp_bw_t *applied)
 {
+    if (!s_radio_on) {
+        *applied = CTP_BW20;
+        return (bw == CTP_BW20) ? CTP_OK : CTP_E_NOT_SUPPORTED;
+    }
     const bool five = ch > 14u;
     /* band first, never AUTO (docs/10 §2) */
     esp_err_t e = esp_wifi_set_band_mode(five ? WIFI_BAND_MODE_5G_ONLY : WIFI_BAND_MODE_2G_ONLY);
@@ -110,6 +121,9 @@ ctp_err_t ctk_radio_set_channel(uint8_t ch, ctp_bw_t bw, ctp_bw_t *applied)
 
 ctp_err_t ctk_radio_set_driver_mask(uint32_t type_mask, uint32_t ctrl_mask)
 {
+    if (!s_radio_on) {
+        return CTP_OK;
+    }
     const wifi_promiscuous_filter_t f = {.filter_mask = type_mask};
     esp_err_t e = esp_wifi_set_promiscuous_filter(&f);
     if (e == ESP_OK) {
@@ -121,5 +135,8 @@ ctp_err_t ctk_radio_set_driver_mask(uint32_t type_mask, uint32_t ctrl_mask)
 
 ctp_err_t ctk_radio_promisc(bool on)
 {
+    if (!s_radio_on) {
+        return CTP_OK;
+    }
     return radio_err(esp_wifi_set_promiscuous(on), CTP_E_RADIO);
 }

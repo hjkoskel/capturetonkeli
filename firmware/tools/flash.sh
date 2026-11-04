@@ -8,7 +8,7 @@
 # Usage: flash.sh CTPBENCH [PORT|auto]
 set -euo pipefail
 B=$1; PORT=${2:-auto}
-cd "$(dirname "$0")/../build"
+cd "$(dirname "$0")/../${FW_BUILD:-build}"
 if ! command -v esptool >/dev/null 2>&1; then . "$IDF_PATH/export.sh" >/dev/null; fi
 
 find_port() {
