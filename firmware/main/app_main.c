@@ -47,9 +47,20 @@ static void ctrl_task(void *arg)
 {
     (void)arg;
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
+#if CONFIG_CTK_DIAG
+    static char diag[200];
+    uint64_t next_diag = 0;
+#endif
     for (;;) {
         ctp_ctrl_step(&s_core, 20u);
         ctk_sys_uptime_tick();
+#if CONFIG_CTK_DIAG
+        if (ctk_sys_now_us() >= next_diag) {
+            next_diag = ctk_sys_now_us() + 5000000u;
+            ctk_diag_report(diag, sizeof diag);
+            ctp_log(&s_core, 3u, diag);
+        }
+#endif
         (void)esp_task_wdt_reset();
     }
 }

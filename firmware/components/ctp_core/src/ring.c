@@ -12,7 +12,7 @@ static uint32_t align4(uint32_t v)
 
 void ctp_ring_init(ctp_ring_t *r, uint8_t *buf, uint32_t size)
 {
-    CTP_ASSERT((size % 4u) == 0u && size >= 64u);
+    CTP_ASSERT((size % 4u) == 0u && size >= 64u && size <= (4u << 20));
     r->buf = buf;
     r->size = size;
     atomic_store_explicit(&r->head, 0u, memory_order_relaxed);
@@ -120,5 +120,6 @@ uint16_t ctp_ring_fill_pct(ctp_ring_t *r)
     const uint32_t h = atomic_load_explicit(&r->head, memory_order_acquire);
     const uint32_t t = atomic_load_explicit(&r->tail, memory_order_acquire);
     const uint32_t used = (h >= t) ? (h - t) : (r->size - t + h);
-    return (uint16_t)((uint64_t)used * 100u / r->size);
+    /* 32-bit math (no __udivdi3 on RV32): used ≤ 128 KB, ×100 fits */
+    return (uint16_t)(used * 100u / r->size);
 }

@@ -198,21 +198,32 @@ uint32_t ctp_enc_log(uint8_t *dst, uint32_t cap, uint8_t level, const char *text
     return fin(&w);
 }
 
+static void put16(uint8_t *p, uint16_t v)
+{
+    p[0] = (uint8_t)(v & 0xFFu);
+    p[1] = (uint8_t)(v >> 8);
+}
+
+/* Hot path (promiscuous callback): fixed-offset stores instead of ~20 cursor
+ * calls. Bounds are checked once up front. */
 uint32_t ctp_enc_pkt_meta(uint8_t *dst, uint32_t cap, const ctp_pkt_meta_t *m)
 {
-    ctp_wr_t w;
-    ctp_wr_init(&w, dst, cap);
-    ctp_wr_u64(&w, m->ts_us);
-    ctp_wr_u8(&w, m->channel);
-    ctp_wr_u8(&w, m->flags);
-    ctp_wr_i8(&w, m->rssi);
-    ctp_wr_i8(&w, m->noise);
-    ctp_wr_u8(&w, m->rate);
-    ctp_wr_u8(&w, m->bb_format);
-    ctp_wr_u16(&w, m->orig_len);
-    ctp_wr_u16(&w, m->cap_len);
-    ctp_wr_u16(&w, m->rx_seq);
-    return fin(&w);
+    if (dst == NULL || cap < CTP_PKT_META_LEN) {
+        return 0u;
+    }
+    for (uint32_t i = 0u; i < 8u; i++) {
+        dst[i] = (uint8_t)((m->ts_us >> (8u * i)) & 0xFFu);
+    }
+    dst[8] = m->channel;
+    dst[9] = m->flags;
+    dst[10] = (uint8_t)m->rssi;
+    dst[11] = (uint8_t)m->noise;
+    dst[12] = m->rate;
+    dst[13] = m->bb_format;
+    put16(&dst[14], m->orig_len);
+    put16(&dst[16], m->cap_len);
+    put16(&dst[18], m->rx_seq);
+    return CTP_PKT_META_LEN;
 }
 
 uint8_t ctp_rate_from_rxctrl(uint8_t bb_format, uint8_t raw_rate, bool *unknown)

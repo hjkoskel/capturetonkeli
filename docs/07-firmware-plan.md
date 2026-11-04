@@ -195,7 +195,7 @@ Each stage ends with a **gate**: concrete commands whose exit code 0 means done.
 - **ROM flasher bring-up:** `ctpbench fw flash-bare` and `fw update` (Go `romflash`) and the web flows A/B/C against real hardware. Verify the USB-JTAG DTR/RTS reset-into-bootloader sequence on Linux/macOS/Windows/Android, re-enumeration handling, MD5 per sector, and the differential sector count.
 - **Gate:** `ctpbench bench throughput --save-baseline usb` recorded; doc 01/03 updated with measured numbers; `wait-device` works after flash; `ctpbench fw flash-bare --yes` brings a factory-fresh XIAO C5 to a HELLO-answering state; `fw update` on an unchanged image writes 0 sectors.
 
-*M3 status (2026-11-04):* throughput baseline recorded (`make fw-synth flash-synth` + `ctpbench bench throughput --save-baseline usb`); flashing via REBOOT 1 verified (doc 10 §3); DTR/RTS safe-open verified on Linux. Open: macOS/Windows/Android, `fw update`/`flash-bare` (Go romflash), web flows.
+*M3 status (2026-11-04):* throughput baseline recorded (`make fw-synth flash-synth` + `ctpbench bench throughput --save-baseline usb`); flashing via REBOOT 1 verified (doc 10 §3); Go `romflash` + `ctpbench fw flash/update/ensure/flash-bare` work on hardware (unchanged image: 0 sectors written in ~4.5 s; full image ~13 s; an interrupted write recovers with a plain retry). Open: macOS/Windows/Android, `fw flash-bare` on a factory-fresh chip, web flows.
 
 ### M4 – Radio bring-up
 - `radio_esp.c`: NULL-mode init, promiscuous on/off, band switching, channel/bw, country (validated + manual), driver masks.
@@ -207,7 +207,7 @@ Each stage ends with a **gate**: concrete commands whose exit code 0 means done.
 - Measure the callback rate on a busy channel; verify the callback stays within its time budget (cycle counter).
 - **Gate:** channel-map report committed as `docs/measurements/channel-map-<idf>.json`; on-target unit tests (`test_apps/target_unit`) pass.
 
-*M4 status (2026-11-04):* channel map committed (`docs/measurements/channel-map-v6.0.2.json`), channel-switch latency measured, rx_ctrl mapping partly done (FCS absent → `no_fcs`; legacy rate mapping implemented, MCS pending). Open: frame-type misreport check, callback cycle budget, on-target unit tests.
+*M4 status (2026-11-04):* channel map committed (`docs/measurements/channel-map-v6.0.2.json`), channel-switch latency 2/3 ms, no frame-type misreport in v6.0.2 (doc 02 §7.2), callback budget met: avg 3.6 µs (850 cycles) after removing a 64-bit division and cursor overhead from the hot path (hot path also placed in IRAM via `ctp_core/linker.lf`; that alone did not change the average). rx_ctrl: FCS absent → `no_fcs`; legacy rate mapping implemented. Open: MCS extraction from `he_siga1`, on-target unit tests (`test_apps/target_unit`).
 
 ### M5 – Integration on hardware
 - Full pipeline: callback → filter → ring → link task → host. HELLO gating, watchdog, cfg_gen, EVT_STATS, reboot modes, safe mode, RAM-only country (flash-write counter stays 0).

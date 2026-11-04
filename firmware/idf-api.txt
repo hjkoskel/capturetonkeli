@@ -114,3 +114,6 @@ macro LP_AON_FORCE_DOWNLOAD_BOOT
 macro REG_SET_FIELD
 header soc/soc.h
 kconfig CONFIG_ESPTOOLPY_FLASHSIZE_8MB
+header esp_cpu.h
+func esp_cpu_get_cycle_count
+kconfig CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ

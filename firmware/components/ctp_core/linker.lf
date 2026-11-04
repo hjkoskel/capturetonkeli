@@ -1,0 +1,25 @@
+# Promiscuous-callback hot path in IRAM (docs/07 §4 rule 10, M4): avoids
+# flash-cache misses while the Wi-Fi driver thrashes the cache. Pure linker
+# placement, so the core keeps zero IDF includes.
+[mapping:ctp_core]
+archive: libctp_core.a
+entries:
+    capture (noflash)
+    filter:ctp_filter_match (noflash)
+    filter:ctp_filter_fcs_drop (noflash)
+    filter:globals_pass (noflash)
+    filter:term_match (noflash)
+    ring:ctp_ring_reserve (noflash)
+    ring:ctp_ring_commit (noflash)
+    ring:ctp_ring_fill_pct (noflash)
+    ring:put_u32 (noflash)
+    ring:align4 (noflash)
+    wire:ctp_enc_pkt_meta (noflash)
+    wire:put16 (noflash)
+    rd:ctp_wr_init (noflash)
+    rd:ctp_wr_bytes (noflash)
+    rd:ctp_wr_u8 (noflash)
+    rd:ctp_wr_i8 (noflash)
+    rd:ctp_wr_u16 (noflash)
+    rd:ctp_wr_u32 (noflash)
+    rd:ctp_wr_u64 (noflash)

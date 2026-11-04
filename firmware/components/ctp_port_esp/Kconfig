@@ -16,4 +16,12 @@ config CTK_SYNTH_FRAME_LEN
     range 24 4096
     default 1500
 
+config CTK_DIAG
+    bool "Diagnostics variant: frame-type matrix + callback cycle budget (M4)"
+    default n
+    help
+        Counts the driver's frame type against the 802.11 Frame Control type
+        (docs/02 §1 C5 misreport check) and measures the CPU cycles spent in
+        ctp_capture_rx (docs/07 §4 rule 10). Reported every 5 s as EVT_LOG.
+
 endmenu

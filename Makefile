@@ -17,7 +17,7 @@ CC_HOST    ?= cc
 
 CORE_SRC   := firmware/components/ctp_core
 
-.PHONY: fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
+.PHONY: fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
         hil ci lint go-test vectors ctpbench release serve doctor clean
 
 help:
@@ -153,6 +153,14 @@ fw:
 # Throughput test variant (synthetic frames, no radio): separate build dir + sdkconfig.
 fw-synth:
 	$(call idf_build,-B build-synth -D SDKCONFIG=build-synth/sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.synth" build,firmware)
+
+# Diagnostics variant (frame-type matrix, callback cycles via EVT_LOG)
+fw-diag:
+	$(call idf_build,-B build-diag -D SDKCONFIG=build-diag/sdkconfig -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.diag" build,firmware)
+
+flash-diag: ctpbench
+	$(CTPBENCH) fw manifest --build firmware/build-diag >/dev/null
+	$(CTPBENCH) --port $(PORT) fw flash --manifest firmware/build-diag/manifest.json --yes -v
 
 fw-smoke:
 	$(call idf_build,build,firmware/test_apps/idf_api_smoke)

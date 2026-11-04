@@ -5,7 +5,7 @@ set(CTP_CORE_SRCS
     src/ring.c src/config.c src/stats.c src/capture.c src/proto.c)
 
 if(ESP_PLATFORM)
-    idf_component_register(SRCS ${CTP_CORE_SRCS} INCLUDE_DIRS include PRIV_INCLUDE_DIRS src)
+    idf_component_register(SRCS ${CTP_CORE_SRCS} INCLUDE_DIRS include PRIV_INCLUDE_DIRS src LDFRAGMENTS linker.lf)
     target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Wconversion -Wsign-conversion -Wshadow
         -Wstrict-prototypes -Wmissing-prototypes -Wswitch-enum -Wundef -Werror)
 else()

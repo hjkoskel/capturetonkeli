@@ -19,6 +19,7 @@ typedef struct {
     bool res_wrap;
 } ctp_ring_t;
 
+/* size ≤ 4 MB (fill math is 32-bit). */
 void ctp_ring_init(ctp_ring_t *r, uint8_t *buf, uint32_t size);
 
 /* Producer: reserve len payload bytes; NULL if full. Then commit. */

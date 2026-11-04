@@ -466,6 +466,7 @@ func cmdCaptureRun(ctx context.Context, e *env, dur time.Duration, count int, pk
 		return nil, err
 	}
 	lastGen := cfg.CfgGen
+	var devLogs []string
 	pendingComment := fmt.Sprintf("cfg_gen %d: ch %d bw %s, country %s, snaplen %d, filter crc %08X", cfg.CfgGen, cfg.Channel, cfg.BW, cfg.Country.Code(), cfg.Snaplen, cfg.RulesCRC32)
 	var deadline <-chan time.Time
 	if dur > 0 {
@@ -503,6 +504,9 @@ loop:
 					"flags": p.Flags, "rate": p.Rate, "bb_format": p.BBFormat, "noise": p.Noise, "rx_seq": p.RxSeq, "cfg_gen": p.CfgGen, "type": frameType(p.Data), "hex": hex.EncodeToString(p.Data)})
 			}
 		case ev := <-c.Events():
+			if l, ok := ev.(ctp.EventLog); ok {
+				devLogs = append(devLogs, l.Text)
+			}
 			if g, ok := ev.(ctp.EventGap); ok && pw != nil {
 				where := "host (link)"
 				if g.Where == ctp.GapDevice {
@@ -537,6 +541,9 @@ loop:
 	res := map[string]any{"packets": n, "duration_ms": el.Milliseconds(), "pkt_per_s": float64(n) / el.Seconds(), "bytes": bytesIn,
 		"device": map[string]uint32{"rx_total": st1.RxTotal - st0.RxTotal, "rx_passed": st1.RxPassed - st0.RxPassed, "drop_ring": st1.DropRing - st0.DropRing, "drop_fcs": st1.DropFCS - st0.DropFCS},
 		"host":   hc, "types": hist, "top_bssids": top}
+	if devLogs != nil {
+		res["device_logs"] = devLogs
+	}
 	var arts []string
 	if pf != nil {
 		arts = append(arts, pf.Name())

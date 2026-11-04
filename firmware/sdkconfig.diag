@@ -1,0 +1,2 @@
+# Diagnostics variant (docs/07 M4): make fw-diag
+CONFIG_CTK_DIAG=y

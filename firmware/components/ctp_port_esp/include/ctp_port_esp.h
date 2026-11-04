@@ -20,6 +20,7 @@ bool ctk_radio_manual_country_supported(void);
 
 /* cb_esp.c */
 void ctk_cb_attach(ctp_t *core);
+void ctk_diag_report(char *buf, size_t cap); /* CONFIG_CTK_DIAG only */
 
 /* synth_esp.c (CONFIG_CTK_SYNTHETIC_TRAFFIC only) */
 void ctk_synth_start(ctp_t *core);

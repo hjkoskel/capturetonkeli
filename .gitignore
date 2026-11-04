@@ -25,3 +25,4 @@ local.mk
 .DS_Store
 firmware/host/build*/
 firmware/build-synth/
+firmware/build-diag/
