@@ -41,7 +41,7 @@ field wifi_pkt_rx_ctrl_t.rx_state
 field wifi_pkt_rx_ctrl_t.dump_len
 field wifi_pkt_rx_ctrl_t.cur_bb_format
 field wifi_pkt_rx_ctrl_t.channel
-field wifi_pkt_rx_ctrl_t.secondary_channel
+field wifi_pkt_rx_ctrl_t.second            # C5 (MAC v3) name; docs/10 said secondary_channel
 field wifi_pkt_rx_ctrl_t.noise_floor
 field wifi_pkt_rx_ctrl_t.timestamp
 macro WIFI_INIT_CONFIG_DEFAULT

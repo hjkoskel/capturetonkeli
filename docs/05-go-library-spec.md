@@ -65,7 +65,7 @@ func (d *Decoder) Stats() DecoderStats // Frames, CRCErrors, COBSErrors, Oversiz
 
 ## 3. `wire` – messages
 
-- Constants for every message type, flag bit, cap bit, err_code, sig_mode, bandwidth, reboot mode and gflags/tflags bit. The names are the same as in doc 03; Appendix B of doc 04 mirrors this list.
+- Constants for every message type, flag bit, cap bit, err_code, reset_reason, bb_format, bandwidth, reboot mode and gflags/tflags bit. The names are the same as in doc 03; Appendix B of doc 04 mirrors this list.
 - One struct per message body, each with `AppendBinary(dst []byte) []byte` and `UnmarshalBinary(b []byte) error`.
   - Unmarshal accepts **longer** bodies (ignores the trailing bytes; doc 03 §11 forward-compat rule).
   - Unmarshal accepts **shorter** bodies when the missing fields are trailing optional ones (default value).
@@ -74,16 +74,17 @@ func (d *Decoder) Stats() DecoderStats // Frames, CRCErrors, COBSErrors, Oversiz
 type Header struct { Ver, Type uint8; Seq, ReqID uint16; Flags, CfgGen uint8 }
 type Hello struct { HostNonce uint32; HostProtoVer uint8 }
 type DeviceInfo struct { ProtoVer uint8; FwVersion uint32 /* packed semver, see fwver */; FwFlags uint8; FwBuildID [8]byte;
-                         MAC [6]byte; Caps Caps; MaxFrame, MaxRules uint16; DeviceTimeUS uint64; HostNonce uint32 }
+                         MAC [6]byte; Caps Caps; MaxFrame, MaxRules uint16; DeviceTimeUS uint64; HostNonce uint32;
+                         ResetReason ResetReason; StateFlags uint8 }
 type Config struct { CfgGen, Channel uint8; BW Bandwidth; Band Band; Country Country; Snaplen uint16;
                      TypeMask, CtrlMask uint32; CaptureOn bool; NRules uint8; RulesCRC32 uint32 }
 type Country struct { CC [3]byte; Mode CountryMode; SChan, NChan uint8 }
 type RspErr struct { Code ErrCode; EspErr int32; Detail string }
 type Stats struct { DeviceTimeUS uint64; RxTotal, RxPassed, DropRing, DropFCS, TxFrames, TxBytes,
-                    HostRxCRCErr, HostRxOversize uint32; RingHighWater uint16; Channel uint8; NoiseFloor int8 }
+                    HostRxCRCErr, HostRxOversize uint32; RingHighWater uint16; Channel uint8; NoiseFloor int8; FlashWrites uint32 }
 type Log struct { Level uint8; Text string }
-type Reset struct { Reason uint8; FwVersion uint32 }
-type PktMeta struct { TsUS uint64; Channel, Flags uint8; RSSI, Noise int8; Rate, SigMode uint8;
+type Reset struct { Reason ResetReason; FwVersion uint32; StateFlags uint8; Detail string }
+type PktMeta struct { TsUS uint64; Channel, Flags uint8; RSSI, Noise int8; Rate, BBFormat uint8;
                       OrigLen, CapLen, RxSeq uint16 }
 ```
 - `ErrCode.String()` and `EspErrName(int32) string` (table of common ESP_ERR_* values).

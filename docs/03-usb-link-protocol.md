@@ -1,4 +1,6 @@
-# 03 – USB link protocol "CTP" (capturetonkeli protocol) – draft v1 (2026-11-04)
+# 03 – USB link protocol "CTP" (capturetonkeli protocol) – draft v1, rev 2 (2026-11-04)
+
+> Rev 2: normative body layouts, error codes and reset reasons (§6.1); PKT `sig_mode` → `bb_format` (§9). Nothing has shipped yet, so this stays protocol `ver` 1 and needs no firmware version bump.
 
 Scope: the byte protocol between the dongle (XIAO ESP32-C5, USB Serial/JTAG CDC-ACM) and the browser (Web Serial on desktop, WebUSB CDC shim on Android).
 One channel at a time; the host changes it by command.
@@ -121,6 +123,87 @@ Pass = global conditions AND (n_rules == 0 OR any rule with all terms matching).
 `{cfg_gen, channel, bw, band, country cc[3] + mode, snaplen, driver masks, capture_on, n_rules, rules_crc32}`.
 The host doesn't need the rule bytes echoed; it compares `rules_crc32` with its own.
 
+### 6.1 Normative body layouts (rev 2, 2026-11-04)
+
+All fields little-endian, no padding. Offsets are within the body (after the 8-byte header). "≥" means receivers accept longer bodies (§11).
+
+**Responses per request**
+| Request | Success response body |
+|---|---|
+| HELLO | DeviceInfo |
+| PING | `u32 host_time_ms` (echo) · `u64 device_time_us` (12 B) |
+| GET_CONFIG, SET_*, CAPTURE | CONFIG |
+| GET_STATS | Stats (same as EVT_STATS) |
+| REBOOT | empty; the device reboots right after this frame has been written |
+
+**DeviceInfo** (42 B)
+```
+0  u8  proto_ver        1   u32 fw_version      5  u8 fw_flags      6 u8 fw_build_id[8]
+14 u8  mac[6]           20  u32 caps            24 u16 max_frame    26 u16 max_rules
+28 u64 device_time_us   36  u32 host_nonce      40 u8 reset_reason  41 u8 state_flags (bit0 safe_mode)
+```
+`caps`: bit0 `5GHZ`, bit1 `HT40`, bit2 `MANUAL_COUNTRY`, bit31 `INJECTOR` (test firmware only). `max_frame` = 4128, `max_rules` = 16.
+
+**CONFIG** (26 B)
+```
+0  u8 cfg_gen   1 u8 channel   2 u8 bw   3 u8 band (0 = 2.4 GHz, 1 = 5 GHz)
+4  char cc[3]   7 u8 country_mode   8 u8 schan   9 u8 nchan
+10 u16 snaplen  12 u32 type_mask    16 u32 ctrl_mask
+20 u8 capture_on  21 u8 n_rules  22 u32 rules_crc32
+```
+- `cc`: two ASCII letters (or `"01"`) followed by `0x00`. In mode 0 the device reports the 2.4 GHz range of the country table in `schan`/`nchan`; in mode 1 it reports the manual range it applied.
+- `bw` readback is the bandwidth actually applied. On 5 GHz the secondary channel is derived from the channel pair (36/40 → 36 is HT40+, 40 is HT40−), so an HT40 request may come back with the other sign.
+- Boot state: cfg_gen 0, channel 1, bw HT20, band 0, cc `"01"`, mode 0, snaplen 0, masks `0xFFFFFFFF`/`0xFF800000` (all), capture off, empty filter (`n_rules` 0, `rules_crc32` = CRC-32 of the 8-byte empty filter body = `0x6522DF69`).
+- `cfg_gen` is incremented (wrapping) only when the applied CONFIG actually changes. Re-sending identical values does not change it (idempotent re-push keeps `cfg_gen`).
+
+**Stats** (48 B)
+```
+0  u64 device_time_us
+8  u32 rx_total   12 u32 rx_passed   16 u32 drop_ring   20 u32 drop_fcs
+24 u32 tx_frames  28 u32 tx_bytes    32 u32 host_rx_crc_err  36 u32 host_rx_oversize
+40 u16 ring_high_water (%)  42 u8 channel  43 i8 noise_floor  44 u32 flash_writes (always 0, doc 07 §4)
+```
+`reset_after_read = 1` zeroes all u32 counters (except `flash_writes`) after building the response. `ring_high_water` restarts after every report (EVT_STATS or GET_STATS), so it is always "max since last read".
+
+**RSP_ERR**: `u16 err_code · i32 esp_err · u8 detail_len · char detail[detail_len]` (detail ≤ 64 B, ASCII, not NUL-terminated). `esp_err` is 0 when no platform call failed.
+
+| err_code | Name | When |
+|---|---|---|
+| 1 | `ERR_UNKNOWN_TYPE` | request type not known (or a device→host type sent to the device) |
+| 2 | `ERR_BAD_BODY` | body shorter than the mandatory fields |
+| 3 | `ERR_INVALID_ARG` | field out of range (bw > 2, mode > 1, reboot mode > 1, …) |
+| 4 | `ERR_CHANNEL_NOT_ALLOWED` | channel not in the active country table (or HT40 partner channel not allowed) |
+| 5 | `ERR_COUNTRY_INVALID` | unknown country code (mode 0) or invalid manual range (mode 1) |
+| 6 | `ERR_NOT_SUPPORTED` | feature not in `caps` (e.g. mode 1 without `MANUAL_COUNTRY`, 5 GHz without `5GHZ`) |
+| 7 | `ERR_FILTER_INVALID` | SET_FILTER body violates Appendix A limits, unknown gflags/tflags bits, non-zero reserved byte, or trailing bytes |
+| 8 | `ERR_NO_SESSION` | CAPTURE 1 before HELLO (or after the host watchdog ended the session) |
+| 9 | `ERR_RADIO` | the platform rejected the change; `esp_err` carries the raw code |
+| 10 | `ERR_SAFE_MODE` | device is in safe mode (doc 07 §4) |
+
+**EVT_RESET**: `u8 reset_reason · u32 fw_version · u8 state_flags · u8 detail_len · char detail[]` (detail = `file:line` for `ASSERT`).
+
+| reset_reason | Name |
+|---|---|
+| 0 | `UNKNOWN` |
+| 1 | `POWER_ON` |
+| 2 | `SOFTWARE` (REBOOT request or `esp_restart`) |
+| 3 | `PANIC` |
+| 4 | `WATCHDOG` (task/interrupt WDT) |
+| 5 | `BROWNOUT` |
+| 6 | `ASSERT` (`CTP_ASSERT`, detail = `file:line`) |
+| 7 | `EXTERNAL` (chip reset by the host, e.g. USB-JTAG DTR/RTS) |
+
+**EVT_LOG**: `u8 level (0 error, 1 warn, 2 info, 3 debug) · text[]` (rest of body, ≤ 200 B).
+
+**Device rules that hosts and conformance rely on**
+- Requests other than HELLO are accepted before HELLO, but nothing unsolicited (PKT, EVT_STATS) is sent until a HELLO has been answered. EVT_RESET is sent once at boot regardless.
+- A HELLO always starts a new session. It does not change CONFIG.
+- Duplicate detection (§5) compares `req_id`, `type` and the CRC of the request; only an exact repeat is answered from the cache.
+- SET_COUNTRY: if the active channel is not allowed under the new table, the device moves to channel `schan` HT20 (2.4 GHz); an HT40 setting whose partner channel became disallowed falls back to HT20. The readback shows the result.
+- SET_DRIVER_MASK only changes which frames the driver delivers (they never reach `rx_total`); user filters (SET_FILTER) are evaluated after it.
+- Host watchdog (§7.4) ends the session: capture off (cfg_gen increments if it was on), the packet ring is flushed, EVT_STATS stops until the next HELLO.
+- Frames with header `ver ≠ 1` are dropped silently (counted with `host_rx_crc_err`); the host must not expect an answer.
+
 ## 7. Session lifecycle and liveness
 
 1. Host opens port (desktop: set DTR/RTS explicitly to avoid USJ reset sequence, see doc 01 risks) and starts the read loop.
@@ -154,16 +237,22 @@ The host adds its own: seq gaps, CRC errors, overruns. The UI shows them so the 
 off size field
 0   8    ts_us       device µs (esp_timer, 64-bit: no wrap handling needed)
 8   1    channel
-9   1    flags       bit0 fcs_err, bit1 truncated, bit2 5GHz, bit3 HT40, bit4 ampdu
+9   1    flags       bit0 fcs_err, bit1 truncated, bit2 5GHz, bit3 HT40, bit4 ampdu, bit5 rate_unknown
 10  1    rssi        (i8, dBm)
 11  1    noise_floor (i8, dBm)
-12  1    rate        legacy rate code or MCS index
-13  1    sig_mode    0=11bg, 1=HT, 3=VHT/HE (as rx_ctrl reports)
+12  1    rate        bb_format 0/1 (legacy): rate in 500 kb/s units (2 = 1 Mb/s … 108 = 54 Mb/s);
+                     other formats: MCS index. Invalid when flags.rate_unknown is set
+13  1    bb_format   C5 rx_ctrl.cur_bb_format: 0 11b, 1 11g/a, 2 HT, 3 VHT, 4 HE-SU, 5 HE-MU,
+                     6 HE-ER-SU, 7 HE-TB, 11 VHT-MU, 0xFF unknown
 14  2    orig_len    original 802.11 length incl. FCS
 16  2    cap_len     bytes that follow
 18  2    rx_seq      per-capture counter of *passed* frames. A gap with seq continuous = dongle-side drop
 20  …    data[cap_len]
 ```
+- *Rev 2 (doc 08 A1):* `sig_mode` was replaced by `bb_format`, because the C5 (Wi-Fi MAC v3) reports `cur_bb_format` and gives a legacy rate only for 11b/11g frames. The firmware converts the raw rx_ctrl rate code to 500 kb/s units (core function, unit-tested); the MCS of HT/VHT/HE frames is extracted from the SIG fields once M4 confirms the bit layout, until then `rate_unknown` is set for those formats.
+- `data` holds the first `cap_len` bytes of the frame including the FCS; the FCS is present in `data` iff `cap_len == orig_len`.
+- `cap_len ≤ min(snaplen or ∞, 4096)`; `truncated` is set iff `cap_len < orig_len`.
+- `rx_seq` restarts at 0 on every CAPTURE 0→1 transition.
 Total overhead per captured frame: 8 hdr + 20 pkt + 4 CRC + COBS (~1 + 1 per 254) + delimiter ≈ **35 bytes**. Fine against typical 100–1500 B frames. With snaplen 32 the frame is ~67 B; FS USB then carries roughly 10–15k frames/s.
 
 The browser converts PKT → pcapng EPB with a radiotap header (LINKTYPE 127: TSFT, flags, rate, channel freq, antenna signal/noise) for saving and Wireshark.

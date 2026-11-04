@@ -1,3 +1,3 @@
-module github.com/OWNER/capturetonkeli
+module github.com/hjkoskel/capturetonkeli
 
 go 1.22

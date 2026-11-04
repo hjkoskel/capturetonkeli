@@ -1,0 +1,46 @@
+[
+  {
+    "name": "short header",
+    "body_hex": "00000000"
+  },
+  {
+    "name": "zero terms",
+    "body_hex": "010000000000000000"
+  },
+  {
+    "name": "unknown gflags",
+    "body_hex": "0010000000000000"
+  },
+  {
+    "name": "reserved nonzero",
+    "body_hex": "0000000100000000"
+  },
+  {
+    "name": "trailing byte",
+    "body_hex": "0000000000000000ee"
+  },
+  {
+    "name": "term len 0",
+    "body_hex": "01000000000000000100000000"
+  },
+  {
+    "name": "term len 17",
+    "body_hex": "01000000000000000100001100"
+  },
+  {
+    "name": "unknown tflags",
+    "body_hex": "010000000000000001000001028000ff"
+  },
+  {
+    "name": "value/mask truncated",
+    "body_hex": "0100000000000000010000010080"
+  },
+  {
+    "name": "17 rules",
+    "body_hex": "1100000000000000"
+  },
+  {
+    "name": "5 terms",
+    "body_hex": "010000000000000005"
+  }
+]

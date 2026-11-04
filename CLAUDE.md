@@ -64,4 +64,4 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 - `make serve` (static server on localhost; Web Serial/WebUSB work on localhost) or the UI's demo mode ("Try without hardware").
 
 ## Status
-Specification phase complete; implementation starts at milestone M0 (docs/07 §5). Open decision: project licence (docs/08 D2). In `go.mod`, replace `OWNER` with the GitHub account name.
+Specification phase complete; implementation starts at milestone M0 (docs/07 §5). Open decision: project licence (docs/08 D2). In `go.mod`, module path is `github.com/hjkoskel/capturetonkeli`.
