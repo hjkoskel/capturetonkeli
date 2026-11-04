@@ -25,3 +25,6 @@ CONFIG_APP_BUILD_MINIMIZE_BINARY_CHANGES=n
 
 # PSRAM not needed
 CONFIG_SPIRAM=n
+
+# 1 kHz tick: link task polls USB with 1 ms timeouts (docs/07 §3)
+CONFIG_FREERTOS_HZ=1000

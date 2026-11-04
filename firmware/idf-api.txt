@@ -89,3 +89,19 @@ kconfig CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE
 kconfig CONFIG_APP_REPRODUCIBLE_BUILD
 kconfig CONFIG_ESP_TASK_WDT_EN
 kconfig CONFIG_ESP_BROWNOUT_DET
+kconfig CONFIG_FREERTOS_HZ
+
+# --- added during M0 implementation
+header esp_event.h
+header esp_mac.h
+func esp_event_loop_create_default
+func esp_wifi_get_country
+func esp_read_mac
+macro xTaskNotifyGive
+macro ulTaskNotifyTake
+macro IRAM_ATTR
+enum WIFI_COUNTRY_POLICY_MANUAL
+enum WIFI_SECOND_CHAN_ABOVE
+enum WIFI_SECOND_CHAN_BELOW
+enum WIFI_PKT_MISC
+enum ESP_MAC_WIFI_STA
