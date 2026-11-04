@@ -15,6 +15,7 @@ Milestones M0–M2 (no hardware needed) implemented: Go reference library + simu
 make ci                                   # everything that runs without hardware
 go run ./cmd/ctpbench --port sim info     # talk to the simulator
 make fw-host-conf                         # real firmware core on a PTY + conformance
+make serve-https                          # web UI on the lab LAN (self-signed https, USB works)
 ```
 
 ## Repository layout

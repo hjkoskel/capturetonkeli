@@ -63,7 +63,7 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 - Anything that writes flash needs `--yes`; without it ctpbench prints the plan only.
 
 ## Local web development
-- `make serve` (static server on localhost; Web Serial/WebUSB work on localhost) or the UI's demo mode ("Try without hardware").
+- `make serve`: dev server on the whole lab LAN (http; USB works only as http://localhost on this machine). `make serve-https`: same with a self-signed certificate (bench-out/serve-cert/, git-ignored) so other lab machines and phones get Web Serial/WebUSB after accepting the warning once. Or the UI's demo mode ("Try without hardware").
 
 ## Status (2026-11-04)
 - Hardware (M3 partial): flashing via REBOOT 1, full conformance passes on the XIAO C5 (2026-11-04). Findings in docs/10 §2–3, docs/03 rev 3 (`no_fcs`). No HT40 in NULL mode. Weak RSSI (−82…−91 dBm): check the antenna.

@@ -17,7 +17,7 @@ CC_HOST    ?= cc
 
 CORE_SRC   := firmware/components/ctp_core
 
-.PHONY: js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
+.PHONY: serve-https js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
         hil ci lint go-test vectors ctpbench release serve doctor clean
 
 help:
@@ -34,7 +34,8 @@ help:
 	@echo "  flash         flash from the host, then ctpbench wait-device (PORT=auto)"
 	@echo "  hil           ctpbench conformance on the dongle (L6)"
 	@echo "  ci            lint host-test fuzz-short diff-test go-test fw-host-conf fw fw-smoke"
-	@echo "  serve         serve web UI on http://localhost:8000"
+	@echo "  serve         serve web UI on the LAN (http; USB only via localhost)"
+	@echo "  serve-https   same with a self-signed certificate (USB works from other machines)"
 
 # ---- Go ------------------------------------------------------------------------
 
@@ -200,8 +201,14 @@ ci: lint host-test fuzz-short diff-test go-test js-test fw-host-conf fw fw-smoke
 release:
 	@echo "make release: not implemented yet (milestone M7, docs/07 §5)" >&2; exit 2
 
+# Dev web server on the whole lab LAN (tools/serve.py). USB in the browser needs
+# a secure context: http://localhost here, or https (self-signed) from other machines.
+SERVE_PORT ?= 8000
 serve:
-	python3 -m http.server 8000
+	python3 tools/serve.py --port $(SERVE_PORT)
+
+serve-https:
+	python3 tools/serve.py --https --port $(SERVE_PORT)
 
 clean:
 	rm -rf $(HB) $(HB)-* firmware/build firmware/test_apps/*/build bench-out
