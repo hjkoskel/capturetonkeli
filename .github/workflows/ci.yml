@@ -47,6 +47,8 @@ jobs:
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: make fw BUILD_ENV=native
       - run: make fw-smoke BUILD_ENV=native
+      - name: bundle-check (fw/ = rebuild from this commit, byte-for-byte)
+        run: make bundle-check BUILD_ENV=native
 
   js:
     runs-on: ubuntu-latest

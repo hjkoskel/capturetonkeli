@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/hjkoskel/capturetonkeli/ctp/romflash"
 	"github.com/hjkoskel/capturetonkeli/ctp/serialport"
 	"github.com/hjkoskel/capturetonkeli/ctp/wire"
+	bundle "github.com/hjkoskel/capturetonkeli/fw"
 )
 
 func init() {
@@ -38,6 +40,19 @@ func init() {
 				return nil, err
 			}
 			return map[string]any{"written": p, "manifest": m}, nil
+		}})
+	var bBuild, bOut string
+	register(command{name: "fw bundle", summary: "write the release bundle (manifest + images) into fw/ (used by make release)",
+		flags: func(fs *flag.FlagSet) {
+			fs.StringVar(&bBuild, "build", "firmware/build-release", "IDF release build directory")
+			fs.StringVar(&bOut, "out", "fw", "bundle directory")
+		},
+		run: func(ctx context.Context, e *env) (any, error) {
+			m, err := fwver.WriteBundle(bBuild, bOut)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"written": bOut, "manifest": m}, nil
 		}})
 	register(command{name: "fw info", summary: "HELLO only (allowed on mismatch): version, flags, build_id vs manifest",
 		run: cmdFwInfo})
@@ -87,14 +102,21 @@ func loadImages(manifestPath, image, offset string) (*fwver.Manifest, []romflash
 		}
 		return nil, []romflash.Image{{Name: filepath.Base(image), Offset: uint32(off), Data: data}}, nil
 	}
+	var fsys fs.FS
+	file := "manifest.json"
 	if manifestPath == "" {
-		return nil, nil, errf(exitUsage, "NO_MANIFEST", "pass --manifest PATH or --fw-manifest PATH (fw/ bundle not built yet: make release)", "no firmware manifest")
+		if !bundle.HasBundle() {
+			return nil, nil, errf(exitUsage, "NO_MANIFEST", "pass --manifest PATH (this ctpbench has no embedded release bundle: make release)", "no firmware manifest")
+		}
+		fsys = bundle.FS
+	} else {
+		dir, f := filepath.Split(manifestPath)
+		if dir == "" {
+			dir = "."
+		}
+		fsys, file = os.DirFS(dir), f
 	}
-	dir, file := filepath.Split(manifestPath)
-	if dir == "" {
-		dir = "."
-	}
-	m, err := fwver.LoadManifest(os.DirFS(dir), file)
+	m, err := fwver.LoadManifest(fsys, file)
 	if err != nil {
 		return nil, nil, errf(exitUsage, "BAD_MANIFEST", "regenerate with `ctpbench fw manifest`", "%v", err)
 	}
@@ -103,7 +125,7 @@ func loadImages(manifestPath, image, offset string) (*fwver.Manifest, []romflash
 	}
 	var imgs []romflash.Image
 	for _, p := range m.Parts {
-		data, err := os.ReadFile(filepath.Join(dir, p.File))
+		data, err := fs.ReadFile(fsys, p.File)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -171,7 +193,7 @@ func cmdFwInfo(ctx context.Context, e *env) (any, error) {
 		return nil, err
 	}
 	res := map[string]any{"device": infoJSON(*info)}
-	if e.g.fwManifest != "" {
+	if e.g.fwManifest != "" || bundle.HasBundle() {
 		m, _, err := loadImages(e.g.fwManifest, "", "")
 		if err != nil {
 			return nil, err

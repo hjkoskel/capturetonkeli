@@ -5,6 +5,7 @@ import { h, inline, confirmDlg, toast } from './dom.js';
 import * as W from '../wire.js';
 import * as semver from '../semver.js';
 import { DemoTransport } from '../transport.js';
+import * as flasher from '../flasher.js';
 
 export function initDevice(root) {
   const info = h('dl.kv'), cfg = h('dl.kv'), fw = h('div'), msg = h('div');
@@ -22,7 +23,7 @@ export function initDevice(root) {
 
   function drawInfo() {
     const i = app.info;
-    if (!i) { info.replaceChildren(h('dt', 'State'), h('dd', 'not connected')); return; }
+    if (!i) { info.replaceChildren(h('dt', 'State'), h('dd', 'not connected')); fw.replaceChildren(fwButtons()); return; }
     const up = () => (app.devStats ? app.devStats.deviceTimeUs : i.deviceTimeUs) / 1e6;
     const flags = [i.fwFlags & W.FW_FLAG.DIRTY && 'dirty', i.fwFlags & W.FW_FLAG.DEV && 'dev (untagged)', i.fwFlags & W.FW_FLAG.IDF_MISMATCH && 'IDF ≠ pinned'].filter(Boolean);
     const kv = [['Transport', app.transport?.label ?? ''], ['Firmware', `${W.fwString(i.fw)}${flags.length ? ` (${flags.join(', ')})` : ''}`],
@@ -37,9 +38,18 @@ export function initDevice(root) {
     else if (!semver.compatible(host, i.fw)) lines.push(h('div.inline-msg.warn', `Firmware ${W.fwString(i.fw)} is not compatible with this page (${host.major}.${host.minor}.x).`));
     else if (semver.compare(host, i.fw) !== 0) lines.push(h('div.inline-msg.info', `Firmware ${W.fwString(i.fw)}, page bundles ${semver.toString(host)} – compatible.`));
     else lines.push(h('div.inline-msg.ok', `Firmware matches this page (${semver.toString(host)}).`));
-    lines.push(h('p.small.muted', 'Flashing from the browser (update, bare chip, from file) is the next milestone. Today: ',
-      h('code', 'ctpbench fw update --yes'), ' or ', h('code', 'make flash'), '.'));
-    fw.replaceChildren(...lines);
+    fw.replaceChildren(...lines, fwButtons());
+  }
+
+  function fwButtons() {
+    const file = h('input.hidden', { type: 'file', multiple: true, accept: '.bin,.json', onchange: (e) => { const f = [...e.target.files]; e.target.value = ''; if (f.length) flasher.flashFromFiles(f); } });
+    const real = app.transport && app.transport.kind !== 'demo';
+    return h('div',
+      h('div.row',
+        app.manifest ? h('button', { onclick: () => flasher.updateToBundled(), disabled: !real, title: real ? '' : 'Connect a real dongle first' }, `Update to bundled ${app.manifest.version}`) : null,
+        h('button', { onclick: () => flasher.flashBare(), disabled: !app.manifest }, 'Flash firmware to a new dongle…'),
+        h('button', { onclick: () => file.click() }, 'Flash from file…'), file),
+      h('p.small.muted', `Only changed 4 KB sectors are written (MD5-compared). Sectors written this session: ${app.sectorsWritten ?? 0}. eFuses are never touched.`));
   }
 
   function drawCfg() {

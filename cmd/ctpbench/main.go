@@ -23,6 +23,7 @@ import (
 	"github.com/hjkoskel/capturetonkeli/ctp/serialport"
 	"github.com/hjkoskel/capturetonkeli/ctp/sim"
 	"github.com/hjkoskel/capturetonkeli/ctp/wire"
+	bundle "github.com/hjkoskel/capturetonkeli/fw"
 )
 
 // Exit codes (docs/06 §3).
@@ -440,15 +441,21 @@ func (e *env) openRaw(ctx context.Context) (io.ReadWriteCloser, error) {
 }
 
 func (e *env) expectedFw() (*fwver.Version, error) {
-	if e.g.fwManifest == "" {
-		return nil, nil // no bundled firmware yet (fw/ is produced by `make release`)
+	var m fwver.Manifest
+	var err error
+	switch {
+	case e.g.fwManifest != "":
+		dir, file := splitPath(e.g.fwManifest)
+		m, err = fwver.LoadManifest(os.DirFS(dir), file)
+	case bundle.HasBundle():
+		m, err = fwver.LoadManifest(bundle.FS, "manifest.json") // the release this ctpbench ships with
+	default:
+		return nil, nil // development ctpbench without an embedded bundle
 	}
-	dir, file := splitPath(e.g.fwManifest)
-	m, err := fwver.LoadManifest(os.DirFS(dir), file)
 	if err != nil {
 		return nil, errf(exitUsage, "BAD_MANIFEST", "check --fw-manifest", "%v", err)
 	}
-	v, _ := fwver.Parse(m.Version)
+	v := m.SemVer()
 	return &v, nil
 }
 

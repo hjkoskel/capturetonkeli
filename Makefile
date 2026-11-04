@@ -17,7 +17,7 @@ CC_HOST    ?= cc
 
 CORE_SRC   := firmware/components/ctp_core
 
-.PHONY: serve-https js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
+.PHONY: bundle-check fw-check-build fw-release-build serve-https js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
         hil ci lint go-test vectors ctpbench release serve doctor clean
 
 help:
@@ -198,8 +198,30 @@ doctor: ctpbench
 
 ci: lint host-test fuzz-short diff-test go-test js-test fw-host-conf fw fw-smoke
 
-release:
-	@echo "make release: not implemented yet (milestone M7, docs/07 §5)" >&2; exit 2
+# make release VERSION=X.Y.Z (docs/11 §4): host tests, release firmware build
+# (strict version, separate build dir), bundle into fw/ (served by Pages and
+# embedded into ctpbench). Commit fw/ on a branch → PR → merge = release.
+release: host-test go-test js-test
+	@echo "$(VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "usage: make release VERSION=MAJOR.MINOR.PATCH" >&2; exit 2; }
+	rm -rf firmware/build-release
+	CTK_RELEASE_VERSION=$(VERSION) $(MAKE) --no-print-directory fw-release-build
+	go run ./cmd/ctpbench fw bundle --build firmware/build-release --out fw
+	go build -o $(CTPBENCH) ./cmd/ctpbench
+	@echo "release $(VERSION) bundled into fw/: review, commit, open a PR"
+
+# docs/11 §4 bundle-check: rebuild the release from source, compare with fw/ byte-for-byte.
+BUNDLE_VERSION = $(shell python3 -c "import json;print(json.load(open('fw/manifest.json'))['version'])" 2>/dev/null)
+bundle-check:
+	@test -n "$(BUNDLE_VERSION)" || { echo "no fw/manifest.json" >&2; exit 1; }
+	rm -rf firmware/build-check
+	CTK_RELEASE_VERSION=$(BUNDLE_VERSION) $(MAKE) --no-print-directory fw-check-build
+	@python3 -c "import json,sys,filecmp;m=json.load(open('fw/manifest.json'));src={'bootloader':'bootloader/bootloader.bin','partition-table':'partition_table/partition-table.bin','app':'ctk.bin'};bad=[p['file'] for p in m['parts'] if not filecmp.cmp('fw/'+p['file'],'firmware/build-check/'+src[p['name']],shallow=False)];print('bundle-check: fw/ matches a rebuild of $(BUNDLE_VERSION)' if not bad else 'bundle-check: DIFFERS: '+', '.join(bad));sys.exit(1 if bad else 0)"
+
+fw-check-build:
+	$(call idf_build,-B build-check -D SDKCONFIG=build-check/sdkconfig build,firmware)
+
+fw-release-build:
+	$(call idf_build,-B build-release -D SDKCONFIG=build-release/sdkconfig build,firmware)
 
 # Dev web server on the whole lab LAN (tools/serve.py). USB in the browser needs
 # a secure context: http://localhost here, or https (self-signed) from other machines.

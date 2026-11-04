@@ -68,8 +68,9 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 ## Status (2026-11-04)
 - Hardware (M3 partial): flashing via REBOOT 1, full conformance passes on the XIAO C5 (2026-11-04). Findings in docs/10 §2–3, docs/03 rev 3 (`no_fcs`). No HT40 in NULL mode. Weak RSSI (−82…−91 dBm): check the antenna.
 - Done (branch `m0-m2-core`): Go reference (`ctp/` wire, codec, filter, regdom, fwver, sim, client; Linux serialport), conformance suite (39 cases), ctpbench subset, shared vectors + C headers; C core M1/M2 (`ctp_core`), `ctp_fw_host` on a PTY passes conformance; ESP-IDF ports + app build natively; IDF API smoke build.
-- Web UI (index.html, js/, css/): all panels, demo mode, recording/export, display filter, error handling; tests `make js-test` (node) + headless Chromium checks. Not yet: browser flashing (docs/04 §11.1).
-- Not yet: ctpbench `fuzz`, `soak`, `inject`; darwin/windows serial; `fw/` bundle + `make release`.
+- Web UI (index.html, js/, css/): all panels, demo mode, recording/export, display filter, error handling, browser flashing (flows A/B/C, js/romflash.js + js/flasher.js); tests `make js-test` (node) + headless Chromium checks.
+- Release 0.1.0 bundled in fw/ (`make release VERSION=X.Y.Z`; reproducible: `make bundle-check`). ctpbench embeds it as the expected firmware.
+- Not yet: ctpbench `fuzz`, `soak`, `inject`; darwin/windows serial; release.yml (tagging), GitHub repo.
 - Gates without hardware: `make lint host-test fuzz-short diff-test go-test js-test fw-host-conf fw fw-smoke` (= `make ci`).
 - Web UI: errors always go through js/errors.js `describe()` (title + explanation + actions) and are shown inline or as a banner and logged; never `alert()`. Test UI changes against demo mode first.
 - Open decision: project licence (docs/08 D2). Go module path is `github.com/hjkoskel/capturetonkeli`.

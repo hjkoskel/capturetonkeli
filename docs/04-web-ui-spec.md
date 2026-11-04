@@ -450,7 +450,7 @@ After entering download mode the USB device re-enumerates. Web Serial needs the 
 
 ---
 
-*Implementation status (2026-11-04):* §1–§10 and §12–§16 implemented and tested with the demo device (node tests + headless Chromium); §11.1 browser flashing is the next step (Device tab points to `ctpbench fw update` meanwhile).
+*Implementation status (2026-11-04):* all sections implemented. §11.1 flashing: `js/romflash.js` (ROM protocol, MD5, differential, watchdog reset) is verified on hardware (release update wrote 2 of 177 sectors in 2.5 s); `js/flasher.js` implements flows A/B/C. Not implemented: "Erase entire flash first" (ERASE_FLASH is a stub-only command; the ROM-only flasher would need a full FLASH_BEGIN erase) and a flash-size check via SPI flash ID.
 
 ## 13. Demo mode (simulated dongle)
 

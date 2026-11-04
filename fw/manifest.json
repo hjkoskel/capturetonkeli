@@ -1,0 +1,32 @@
+{
+  "version": "0.1.0",
+  "build_id": "d253ef148b160d29",
+  "protocol_ver": 1,
+  "idf": "v6.0.2",
+  "chip": "esp32c5",
+  "flash": {
+    "mode": "dio",
+    "freq": "80m",
+    "size": "8MB"
+  },
+  "parts": [
+    {
+      "name": "bootloader",
+      "offset": "0x2000",
+      "file": "bootloader.bin",
+      "sha256": "579cb823a2c006f5ecd33ad5876dc4c915a3a0fc9b4642241ba124ec9726d4c0"
+    },
+    {
+      "name": "partition-table",
+      "offset": "0x8000",
+      "file": "partition-table.bin",
+      "sha256": "7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820"
+    },
+    {
+      "name": "app",
+      "offset": "0x10000",
+      "file": "ctk-0.1.0.bin",
+      "sha256": "d79867b4ab770ed70825018853eab31561f825e383ae016f86042df8e34da631"
+    }
+  ]
+}

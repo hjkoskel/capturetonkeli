@@ -79,3 +79,38 @@ func ManifestFromBuild(dir string) (Manifest, error) {
 	}
 	return m, nil
 }
+
+// WriteBundle copies the images of an IDF build into outDir with release
+// names (bootloader.bin, partition-table.bin, ctk-VERSION.bin), removes older
+// *.bin files there, and writes outDir/manifest.json (paths relative to it).
+func WriteBundle(buildDir, outDir string) (Manifest, error) {
+	m, err := ManifestFromBuild(buildDir)
+	if err != nil {
+		return m, err
+	}
+	if _, err := Parse(m.Version); err != nil {
+		return m, fmt.Errorf("fwver: release builds need a strict MAJOR.MINOR.PATCH version, got %q (build with CTK_RELEASE_VERSION)", m.Version)
+	}
+	old, _ := filepath.Glob(filepath.Join(outDir, "*.bin"))
+	for _, f := range old {
+		if err := os.Remove(f); err != nil {
+			return m, err
+		}
+	}
+	for i, p := range m.Parts {
+		name := p.Name + ".bin"
+		if p.Name == "app" {
+			name = "ctk-" + m.Version + ".bin"
+		}
+		data, err := os.ReadFile(filepath.Join(buildDir, p.File))
+		if err != nil {
+			return m, err
+		}
+		if err := os.WriteFile(filepath.Join(outDir, name), data, 0o644); err != nil {
+			return m, err
+		}
+		m.Parts[i].File = name
+	}
+	b, _ := json.MarshalIndent(m, "", "  ")
+	return m, os.WriteFile(filepath.Join(outDir, "manifest.json"), append(b, '\n'), 0o644)
+}

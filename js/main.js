@@ -14,6 +14,7 @@ import { initDevice } from './ui/device.js';
 import { initLog } from './ui/logpanel.js';
 import { initSettings } from './ui/settingspanel.js';
 import { initPackets } from './ui/packets.js';
+import * as flasher from './flasher.js';
 
 // ---- global error net: nothing fails silently -----------------------------------------
 window.addEventListener('error', (e) => internalError(e.error ?? e.message));
@@ -47,6 +48,7 @@ const support = unsupportedReason();
 if (support) {
   $('#support').append(messageEl(support));
   $('#start-connect').disabled = true;
+  $('#start-flash').disabled = true;
   $('#btn-connect').disabled = true;
 }
 main.classList.add('has-start');
@@ -67,6 +69,7 @@ async function offerKnown() {
 
 $('#start-connect').onclick = () => { hideStart(); doConnect(); };
 $('#start-demo').onclick = () => { hideStart(); app.connect('demo'); };
+$('#start-flash').onclick = () => { hideStart(); flasher.flashBare(); };
 
 async function doConnect() {
   if (!(await legalOk())) return;
@@ -191,14 +194,21 @@ app.addEventListener('version-mismatch', async (e) => {
     h('p', h('strong', 'Dongle: '), `${dev} (build ${Array.from(err.info.buildId, (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 8)}…)`),
     h('p', h('strong', 'Page: '), `${page}${app.manifest ? ` (bundled firmware build ${String(app.manifest.build_id).slice(0, 8)}…)` : ''}`),
     h('p', err.protocol ? 'This page cannot talk to the firmware on the dongle. The firmware must be updated.' : `This page is tested only with firmware ${app.hostFw?.major}.${app.hostFw?.minor}.x.`),
-    h('p.muted.small', 'Updating from the page arrives in the next release; until then update with: ctpbench fw update --yes'),
+    h('p.muted.small', 'Updating writes only the flash sectors that changed (MD5-compared) and takes about 5–20 s. Keep the dongle plugged in.'),
   ];
   if (!err.protocol) body.push(h('label', cb, ' Don\'t ask again for this dongle and firmware version'));
   const buttons = [{ label: 'Cancel', value: 'cancel' }];
-  if (!err.protocol) buttons.push({ label: `Continue with ${dev} (unsupported)`, value: 'continue', primary: true });
+  if (!err.protocol) buttons.push({ label: `Continue with ${dev} (unsupported)`, value: 'continue' });
+  if (app.manifest) {
+    const newer = app.hostFw && W.fwToWire(err.info.fw) > W.fwToWire(app.hostFw);
+    buttons.push({ label: err.protocol ? `Flash bundled firmware ${app.manifest.version}` : newer ? `Install release firmware ${app.manifest.version} (downgrade)` : `Update dongle to ${app.manifest.version}`,
+      value: err.protocol ? 'flash' : 'update', primary: true });
+  }
   const choice = await dialog(err.protocol ? 'Protocol version mismatch' : 'Firmware version mismatch', body, buttons);
   resolve({ choice: choice || 'cancel', dontAsk: cb.checked });
 });
+
+app.addEventListener('request-flash', (e) => (e.detail === 'flash' ? flasher.flashBare() : flasher.updateToBundled()));
 
 // ---- legal notice (docs/04 §15) -----------------------------------------------------------------
 async function legalOk() {

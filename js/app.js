@@ -145,6 +145,12 @@ class App extends EventTarget {
         if (e.kind !== 'version') throw e;
         this.info = e.info;
         const choice = await this.versionDecision(e);
+        if (choice === 'update' || choice === 'flash') {
+          // hand over to the flasher: it sends REBOOT 1 on this session (update) or uses the BOOT flow
+          this.setConn('connected');
+          this.emit('request-flash', choice);
+          return null;
+        }
         if (choice !== 'continue') { await this.disconnect(true); return null; }
         this.unsupportedFw = true;
       }
@@ -233,7 +239,7 @@ class App extends EventTarget {
 
   // ---- link loss & reconnect (docs/04 §4 keepalive) -----------------------------------------
   async onLost(err) {
-    if (this.conn === 'disconnected' || this.conn === 'reconnecting') return;
+    if (this.flashing || this.conn === 'disconnected' || this.conn === 'reconnecting') return;
     const wasRecording = !!this.recording;
     this.fail('link', err, 'Link lost', { quiet: true });
     await this.teardown(false);
