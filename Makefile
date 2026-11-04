@@ -108,9 +108,7 @@ lint:
 	@test -z "$$(gofmt -l ctp cmd conformance internal testvectors)" || { gofmt -l ctp cmd conformance internal testvectors; echo "gofmt needed" >&2; exit 1; }
 	cppcheck $(CPPCHECK_FLAGS) $(CORE_SRC)/src
 ifeq ($(shell clang-tidy --version >/dev/null 2>&1 && echo yes),yes)
-	clang-tidy --quiet --warnings-as-errors='*' \
-	  --checks='-*,bugprone-*,cert-*,clang-analyzer-*,-bugprone-easily-swappable-parameters,-cert-err33-c' \
-	  $(CORE_SRC)/src/*.c -- -std=c11 -I$(CORE_SRC)/include -I$(CORE_SRC)/src
+	clang-tidy --quiet $(CORE_SRC)/src/*.c -- -std=c11 -I$(CORE_SRC)/include -I$(CORE_SRC)/src  # config: $(CORE_SRC)/.clang-tidy
 else
 	@echo "lint: clang-tidy not usable, skipped" >&2
 endif

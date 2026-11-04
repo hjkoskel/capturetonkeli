@@ -1,0 +1,13 @@
+# clang-tidy profile for the portable core (docs/07 §4).
+# - insecureAPI.DeprecatedOrUnsafeBufferHandling: wants Annex K memcpy_s, which
+#   neither glibc nor IDF's picolibc provides; all copies are bounds-checked.
+# - easily-swappable-parameters: style only.
+# - cert-err33-c: return values of memcpy/memset are pointers, not errors.
+Checks: >
+  -*,bugprone-*,cert-*,clang-analyzer-*,
+  -bugprone-easily-swappable-parameters,
+  -cert-err33-c,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+WarningsAsErrors: '*'
+CheckOptions:
+  bugprone-signed-bitwise.IgnorePositiveIntegerLiterals: true
