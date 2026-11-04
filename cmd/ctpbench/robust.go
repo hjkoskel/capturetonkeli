@@ -171,7 +171,7 @@ func cmdFuzz(ctx context.Context, e *env, dur time.Duration) (any, error) {
 	sort.Slice(rtts, func(i, j int) bool { return rtts[i] < rtts[j] })
 	res := map[string]any{"frames_sent": sent, "kinds": kinds, "pings": len(rtts), "rtt_ms": durStats(rtts), "device_resets": resets,
 		"device_counted_note": "fuzzed GET_STATS frames may reset these counters", "device_counted": map[string]uint32{"host_rx_crc_err": st1.HostRxCRCErr - st0.HostRxCRCErr, "host_rx_oversize": st1.HostRxOversize - st0.HostRxOversize},
-		"seed":           e.g.seed, "failures": failures, "ok": len(failures) == 0,
+		"seed": e.g.seed, "failures": failures, "ok": len(failures) == 0,
 		"repro": fmt.Sprintf("ctpbench --port %s --seed %d fuzz --duration %s", e.g.port, e.g.seed, dur)}
 	if len(failures) > 0 {
 		return nil, testFailure{res}
