@@ -22,8 +22,10 @@ import (
 	"github.com/hjkoskel/capturetonkeli/conformance"
 	"github.com/hjkoskel/capturetonkeli/ctp"
 	"github.com/hjkoskel/capturetonkeli/ctp/codec"
+	"github.com/hjkoskel/capturetonkeli/ctp/dot11"
 	"github.com/hjkoskel/capturetonkeli/ctp/filter"
 	"github.com/hjkoskel/capturetonkeli/ctp/fwver"
+	"github.com/hjkoskel/capturetonkeli/ctp/pcapng"
 	"github.com/hjkoskel/capturetonkeli/ctp/serialport"
 	"github.com/hjkoskel/capturetonkeli/ctp/wire"
 	"github.com/hjkoskel/capturetonkeli/internal/vectorgen"
@@ -164,15 +166,17 @@ func init() {
 	var capDur time.Duration
 	var capCount int
 	var capPkts bool
+	var capPcap string
 	register(command{name: "capture run", summary: "capture for --duration/--count; summary with counts, drops, histogram",
 		example: "ctpbench --port sim capture run --duration 3s",
 		flags: func(fs *flag.FlagSet) {
 			fs.DurationVar(&capDur, "duration", 0, "capture time")
 			fs.IntVar(&capCount, "count", 0, "stop after N packets")
 			fs.BoolVar(&capPkts, "jsonl-packets", false, "write packets.jsonl to --out-dir")
+			fs.StringVar(&capPcap, "pcapng", "", "write a pcapng file (bare file names go to --out-dir)")
 		},
 		run: func(ctx context.Context, e *env) (any, error) {
-			return cmdCaptureRun(ctx, e, capDur, capCount, capPkts)
+			return cmdCaptureRun(ctx, e, capDur, capCount, capPkts, capPcap)
 		}})
 	var sreset bool
 	register(command{name: "stats", summary: "GET_STATS", flags: func(fs *flag.FlagSet) { fs.BoolVar(&sreset, "reset", false, "reset after read") },
@@ -232,10 +236,11 @@ func init() {
 			}
 			return res, nil
 		}})
+	register(command{name: "verify-pcap", summary: "parse a pcapng file, check structure/radiotap", run: cmdVerifyPcap})
 	register(command{name: "wait-device", summary: "wait until the device answers HELLO (use --timeout)",
 		run: cmdWaitDevice})
 	for _, n := range []string{
-		"fuzz", "soak", "inject", "verify-pcap", "raw stream", "report merge", "schema"} {
+		"fuzz", "soak", "inject", "raw stream", "report merge", "schema"} {
 		n := n
 		register(command{name: n, summary: "not implemented yet", run: func(context.Context, *env) (any, error) {
 			return nil, errf(exitUsage, "NOT_IMPLEMENTED", "planned for a later milestone (docs/07 §5)", "%s is not implemented yet", n)
@@ -419,7 +424,7 @@ func cmdReboot(ctx context.Context, e *env, download, yes bool) (any, error) {
 	}
 }
 
-func cmdCaptureRun(ctx context.Context, e *env, dur time.Duration, count int, pktsOut bool) (any, error) {
+func cmdCaptureRun(ctx context.Context, e *env, dur time.Duration, count int, pktsOut bool, pcapPath string) (any, error) {
 	if dur == 0 && count == 0 {
 		return nil, errf(exitUsage, "USAGE", "capture run --duration 5s | --count N", "need --duration or --count")
 	}
@@ -436,13 +441,32 @@ func cmdCaptureRun(ctx context.Context, e *env, dur time.Duration, count int, pk
 		}
 		defer pf.Close()
 	}
+	var pw *pcapng.Writer
+	var pcapFile *os.File
+	if pcapPath != "" {
+		if !filepath.IsAbs(pcapPath) && !strings.Contains(pcapPath, "/") {
+			_ = os.MkdirAll(e.outDir(), 0o755)
+			pcapPath = filepath.Join(e.outDir(), pcapPath)
+		}
+		if pcapFile, err = os.Create(pcapPath); err != nil {
+			return nil, err
+		}
+		defer pcapFile.Close()
+		v := fwver.FromWire(c.Info().FwVersion)
+		if pw, err = pcapng.NewWriter(pcapFile, pcapng.WriterOptions{UserAppl: "capturetonkeli ctpbench", Hardware: "XIAO ESP32-C5 fw " + v.String(), IfName: e.g.port}); err != nil {
+			return nil, err
+		}
+	}
 	st0, err := c.Stats(ctx, false)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := c.Capture(ctx, true); err != nil {
+	cfg, err := c.Capture(ctx, true)
+	if err != nil {
 		return nil, err
 	}
+	lastGen := cfg.CfgGen
+	pendingComment := fmt.Sprintf("cfg_gen %d: ch %d bw %s, country %s, snaplen %d, filter crc %08X", cfg.CfgGen, cfg.Channel, cfg.BW, cfg.Country.Code(), cfg.Snaplen, cfg.RulesCRC32)
 	var deadline <-chan time.Time
 	if dur > 0 {
 		deadline = time.After(dur)
@@ -461,12 +485,30 @@ loop:
 			n++
 			bytesIn += int(p.CapLen)
 			hist[frameType(p.Data)]++
+			if pw != nil {
+				if p.CfgGen != lastGen {
+					pendingComment = fmt.Sprintf("cfg_gen %d", p.CfgGen)
+					lastGen = p.CfgGen
+				}
+				if err := pw.WritePacket(p.PktMeta, p.Data, pendingComment); err != nil {
+					return nil, err
+				}
+				pendingComment = ""
+			}
 			if len(p.Data) >= 22 && p.Data[0]&0x0c == 0 {
 				bssid[net.HardwareAddr(p.Data[16:22]).String()]++
 			}
 			if pf != nil {
 				json.NewEncoder(pf).Encode(map[string]any{"ts_us": p.TsUS, "ch": p.Channel, "rssi": p.RSSI, "orig_len": p.OrigLen, "cap_len": p.CapLen,
 					"flags": p.Flags, "rate": p.Rate, "bb_format": p.BBFormat, "noise": p.Noise, "rx_seq": p.RxSeq, "cfg_gen": p.CfgGen, "type": frameType(p.Data), "hex": hex.EncodeToString(p.Data)})
+			}
+		case ev := <-c.Events():
+			if g, ok := ev.(ctp.EventGap); ok && pw != nil {
+				where := "host (link)"
+				if g.Where == ctp.GapDevice {
+					where = "dongle"
+				}
+				pendingComment = fmt.Sprintf("gap: %d dropped on %s", g.N, where)
 			}
 		case <-deadline:
 			break loop
@@ -495,25 +537,20 @@ loop:
 	res := map[string]any{"packets": n, "duration_ms": el.Milliseconds(), "pkt_per_s": float64(n) / el.Seconds(), "bytes": bytesIn,
 		"device": map[string]uint32{"rx_total": st1.RxTotal - st0.RxTotal, "rx_passed": st1.RxPassed - st0.RxPassed, "drop_ring": st1.DropRing - st0.DropRing, "drop_fcs": st1.DropFCS - st0.DropFCS},
 		"host":   hc, "types": hist, "top_bssids": top}
+	var arts []string
 	if pf != nil {
-		res["artifacts"] = []string{pf.Name()}
+		arts = append(arts, pf.Name())
+	}
+	if pcapFile != nil {
+		arts = append(arts, pcapFile.Name())
+	}
+	if arts != nil {
+		res["artifacts"] = arts
 	}
 	return res, nil
 }
 
-func frameType(d []byte) string {
-	if len(d) < 1 {
-		return "runt"
-	}
-	t, s := (d[0]>>2)&3, d[0]>>4
-	names := map[[2]byte]string{{0, 0}: "assoc-req", {0, 1}: "assoc-resp", {0, 4}: "probe-req", {0, 5}: "probe-resp", {0, 8}: "beacon",
-		{0, 10}: "disassoc", {0, 11}: "auth", {0, 12}: "deauth", {0, 13}: "action", {1, 8}: "block-ack-req", {1, 9}: "block-ack",
-		{1, 10}: "ps-poll", {1, 11}: "rts", {1, 12}: "cts", {1, 13}: "ack", {2, 0}: "data", {2, 4}: "null", {2, 8}: "qos-data", {2, 12}: "qos-null"}
-	if n, ok := names[[2]byte{t, s}]; ok {
-		return n
-	}
-	return fmt.Sprintf("t%d/s%d", t, s)
-}
+func frameType(d []byte) string { return dot11.Parse(d).Name }
 
 func cmdMonitor(ctx context.Context, e *env, dur time.Duration) (any, error) {
 	c, err := e.client(ctx, ctp.Options{})
@@ -812,3 +849,51 @@ func cmdWaitDevice(ctx context.Context, e *env) (any, error) {
 }
 
 var _ = io.EOF
+
+func cmdVerifyPcap(ctx context.Context, e *env) (any, error) {
+	if len(e.args) != 1 {
+		return nil, errf(exitUsage, "USAGE", "ctpbench verify-pcap FILE", "need one file")
+	}
+	fh, err := os.Open(e.args[0])
+	if err != nil {
+		return nil, err
+	}
+	defer fh.Close()
+	f, err := pcapng.Read(fh)
+	if err != nil {
+		return nil, testFailure{map[string]any{"ok": false, "error": err.Error()}}
+	}
+	var anomalies []string
+	if f.LinkType != pcapng.LinkTypeRadiotap {
+		anomalies = append(anomalies, fmt.Sprintf("linktype %d != 127", f.LinkType))
+	}
+	var lastTs uint64
+	comments := 0
+	hist := map[string]int{}
+	for i, p := range f.Packets {
+		if p.Radiotap == nil || len(p.Radiotap) < 8 || p.Radiotap[0] != 0 {
+			anomalies = append(anomalies, fmt.Sprintf("packet %d: bad radiotap", i))
+			continue
+		}
+		if p.OrigLen < p.CapLen {
+			anomalies = append(anomalies, fmt.Sprintf("packet %d: orig_len < cap_len", i))
+		}
+		if p.TsUS < lastTs {
+			anomalies = append(anomalies, fmt.Sprintf("packet %d: timestamp goes back", i))
+		}
+		lastTs = p.TsUS
+		if p.Comment != "" {
+			comments++
+		}
+		hist[dot11.Parse(p.Frame).Name]++
+		if len(anomalies) > 20 {
+			break
+		}
+	}
+	res := map[string]any{"ok": len(anomalies) == 0, "packets": len(f.Packets), "comments": comments, "linktype": f.LinkType,
+		"tsresol": f.TsResol, "userappl": f.UserAppl, "hardware": f.Hardware, "types": hist, "anomalies": anomalies}
+	if len(anomalies) > 0 {
+		return nil, testFailure{res}
+	}
+	return res, nil
+}
