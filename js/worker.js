@@ -6,6 +6,7 @@ import * as W from './wire.js';
 import * as D from './dot11.js';
 import * as P from './pcapng.js';
 import { compileDisplayFilter } from './display-filter.js';
+import { Receiver as HxReceiver } from './hxfpv.js';
 
 let dec = new Decoder();
 let lastSeq = -1;
@@ -38,6 +39,26 @@ let lastGen = -1, lastRxSeq = -1, captureEpoch = 0;
 const cfgNotes = new Map();
 
 alloc(N);
+
+// ---- hx-esp32-cam-fpv receiver (docs/12) -----------------------------------------------------
+// Decodes every unit in range; JPEGs of the shown unit go to the main thread
+// (at most 2 in flight, so a slow display drops frames instead of queueing).
+const fpvView = { on: false, unit: 'auto', inFlight: 0, skipped: 0 };
+const hx = new HxReceiver({ now: () => performance.now(), onFrame: (u, jpeg, info) => {
+  if (!fpvView.on || shownUnit() !== u.id) return;
+  if (fpvView.inFlight >= 2) { fpvView.skipped++; return; }
+  fpvView.inFlight++;
+  self.postMessage({ t: 'fpv-frame', unit: u.id, info, buf: jpeg }, [jpeg.buffer]);
+} });
+function shownUnit() {
+  if (fpvView.unit !== 'auto') return fpvView.unit;
+  let best = null, now = performance.now();
+  for (const u of hx.units.values()) if (now - u.last < 3000 && (!best || u.st.framesOk + u.st.framesFec > best.st.framesOk + best.st.framesFec)) best = u;
+  return best?.id ?? null;
+}
+function hxPush(meta, data) {
+  try { hx.push(W.frameBytes(meta, data), { rssi: meta.rssi, channel: meta.channel }); } catch (e) { host.hxErrors = (host.hxErrors ?? 0) + 1; host.hxLastError = String(e.message ?? e); }
+}
 
 function addMark(text, kind = 'info') { pendingMarks.push({ text, kind }); }
 
@@ -115,6 +136,7 @@ function onFrame(h, body) {
     }
     lastRxSeq = p.meta.rxSeq;
     store(h, p.meta, p.data);
+    hxPush(p.meta, p.data);
     return;
   }
   if (h.type === W.T.EVT_RESET) { addMark('Dongle restarted', 'reset'); lastRxSeq = -1; }
@@ -219,7 +241,8 @@ let rateWin = { t: performance.now(), pkts: 0, bytes: 0 };
 setInterval(() => {
   const now = performance.now(), dt = (now - rateWin.t) / 1000;
   const s = { ...host, decoder: { ...dec.stats }, stored: next - oldest, received: next, pps: (next - rateWin.pkts) / dt, bps: (host.bytesIn - rateWin.bytes) / dt,
-    fill: (next - oldest) / N, recording: rec ? { packets: rec.packets } : null };
+    fill: (next - oldest) / N, recording: rec ? { packets: rec.packets } : null,
+    fpv: hx.units.size || hx.wrongVersion ? { ...hx.summary(), shown: shownUnit(), skipped: fpvView.skipped } : null };
   rateWin = { t: now, pkts: next, bytes: host.bytesIn };
   host.parseMs = 0;
   self.postMessage({ t: 'tick', s });
@@ -244,6 +267,9 @@ self.onmessage = (e) => {
     case 'detail': self.postMessage({ t: 'detail', id: m.id, d: detail(m.n) }); break;
     case 'filter': self.postMessage({ t: 'filter', id: m.id, ...setFilter(m.expr) }); break;
     case 'clear': alloc(N); firstTs = null; break;
+    case 'fpv-view': fpvView.on = !!m.on; fpvView.unit = m.unit ?? 'auto'; break;
+    case 'fpv-ack': fpvView.inFlight = Math.max(0, fpvView.inFlight - 1); break;
+    case 'fpv-reset': hx.reset(); fpvView.inFlight = 0; fpvView.skipped = 0; break;
     case 'store-size': alloc(Math.max(10000, Math.min(2000000, m.n | 0))); firstTs = null; break;
     case 'rec-start': rec = { chunks: [P.header(m.opts)], size: 0, packets: 0, filtered: !!m.filtered }; rec.size = rec.chunks[0].length; break;
     case 'rec-stop': flushRec(); self.postMessage({ t: 'rec-stopped', packets: rec?.packets ?? 0 }); rec = null; break;

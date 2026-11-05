@@ -8,6 +8,12 @@ sources** (`ctp/`, `cmd/`, `conformance/`) and the **firmware sources**
 (`firmware/`) contain no third-party code. Go programs link only the Go
 standard library (BSD-3-Clause, Copyright The Go Authors).
 
+The FPV viewer (`js/hxfec.js`, `js/hxfpv.js`, docs/12) implements the
+over-the-air format of hx-esp32-cam-fpv (MIT, Copyright 2021 jeanleflambeur
+and contributors) for interoperability; no code was copied. The test fixtures
+`test/js/fixtures/hxfpv-*.json` are output data generated with that project's
+C sources.
+
 The **firmware images** (`fw/*.bin`, also embedded in the `ctpbench` binary)
 are built with ESP-IDF (version pinned in `firmware/idf-version.txt`) and
 contain the following third-party software. Licence texts are in the ESP-IDF

@@ -177,6 +177,21 @@ dialog menu { display: flex; gap: 8px; justify-content: flex-end; padding: 0; ma
 
 .mobile-only { display: none; }
 
+/* FPV tab (docs/12) */
+.fpv-video { position: relative; background: #000; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; border-radius: 4px; overflow: hidden; }
+.fpv-video canvas { width: 100%; height: 100%; object-fit: contain; }
+.fpv-video:fullscreen { aspect-ratio: auto; border-radius: 0; }
+.fpv-osd { position: absolute; left: 6px; right: 6px; top: 4px; color: #fff; font: 11px var(--mono); text-shadow: 0 0 3px #000, 0 0 3px #000; pointer-events: none;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fpv-stage { display: none; }
+main#app.fpv-large .fpv-stage { display: flex; grid-column: 2; grid-row: 1 / 4; background: #000; min-height: 0; padding: 8px; }
+main#app.fpv-large .fpv-stage .fpv-video { flex: 1; aspect-ratio: auto; }
+main#app.fpv-large .fpv-stage .fpv-osd { font-size: 14px; }
+main#app.fpv-large .packets, main#app.fpv-large .detail { display: none; }
+.fpv-osd.fec { color: #ffd34d; }
+.ok-text { color: var(--ok, #1a7f37); }
+.warn-text { color: var(--warn, #b26b00); }
+
 /* mobile (< 900 px): bottom tab bar, detail as full-screen sheet, ≥ 44 px targets */
 @media (max-width: 899px) {
   .mobile-only { display: inline-block; }
@@ -186,6 +201,7 @@ dialog menu { display: flex; gap: 8px; justify-content: flex-end; padding: 0; ma
   .side, .packets { grid-area: main; border-right: 0; }
   main#app.show-packets .side { display: none; }
   main#app:not(.show-packets) .packets { display: none; }
+  .fpv-large-btn { display: none; }
   .detail { position: fixed; inset: 0; z-index: 30; display: none; }
   .detail.open { display: block; }
   .detail-cols { grid-template-columns: 1fr; }

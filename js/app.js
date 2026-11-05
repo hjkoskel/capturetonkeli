@@ -61,6 +61,7 @@ class App extends EventTarget {
         this.client?.ingest(m.h, new Uint8Array(m.body.buffer, m.body.byteOffset, m.body.byteLength));
         break;
       case 'tick': this.host = m.s; this.emit('host', m.s); break;
+      case 'fpv-frame': this.emit('fpv-frame', m); break;
       case 'recdata': this.writeRec(m.buf); break;
       case 'rec-stopped': this.finishRec(m.packets); break;
       case 'error': this.fail('worker', new Error(m.message), 'Packet processing', { bannerKey: 'worker' }); break;

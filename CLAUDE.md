@@ -15,6 +15,7 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 | Firmware update / flash-wear decision | docs/09 |
 | ESP-IDF v6 API audit | docs/10 |
 | Repo layout, Pages, CI, release | docs/11 |
+| FPV viewer for hx-esp32-cam-fpv (web UI) | docs/12 |
 
 ## Repo facts
 - `index.html` at the repo root is the live GitHub Pages site (`https://<owner>.github.io/capturetonkeli/`). `main` = production. Never push to `main` directly; use PRs.
@@ -68,7 +69,7 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 ## Status (2026-11-04)
 - Hardware (M3 partial): flashing via REBOOT 1, full conformance passes on the XIAO C5 (2026-11-04). Findings in docs/10 §2–3, docs/03 rev 3 (`no_fcs`). No HT40 in NULL mode. Weak RSSI (−82…−91 dBm): check the antenna.
 - Done (branch `m0-m2-core`): Go reference (`ctp/` wire, codec, filter, regdom, fwver, sim, client; Linux serialport), conformance suite (39 cases), ctpbench subset, shared vectors + C headers; C core M1/M2 (`ctp_core`), `ctp_fw_host` on a PTY passes conformance; ESP-IDF ports + app build natively; IDF API smoke build.
-- Web UI (index.html, js/, css/): all panels, demo mode, recording/export, display filter, error handling, browser flashing (flows A/B/C, js/romflash.js + js/flasher.js); tests `make js-test` (node) + headless Chromium checks.
+- Web UI (index.html, js/, css/): all panels, demo mode, recording/export, display filter, error handling, browser flashing (flows A/B/C, js/romflash.js + js/flasher.js), FPV viewer for hx-esp32-cam-fpv (docs/12, FPV tab; demo air unit on channel 7); tests `make js-test` (node) + headless Chromium checks.
 - Release 0.1.0 bundled in fw/ (`make release VERSION=X.Y.Z`; reproducible: `make bundle-check`). ctpbench embeds it as the expected firmware.
 - Not yet: ctpbench `fuzz`, `soak`, `inject`; darwin/windows serial; release.yml (tagging), GitHub repo.
 - Gates without hardware: `make lint host-test fuzz-short diff-test go-test js-test fw-host-conf fw fw-smoke` (= `make ci`).

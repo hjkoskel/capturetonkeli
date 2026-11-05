@@ -5,6 +5,7 @@ import { Decoder, encodeFrame, crc32 } from './codec.js';
 import * as W from './wire.js';
 import * as F from './filter.js';
 import { COUNTRIES } from './regdom.js';
+import { HxAirSim, DEMO_CHANNEL } from './hxdemo.js';
 
 const WATCHDOG_MS = 2000, STATS_MS = 1000, RING_BYTES = 96 * 1024, USB_BPS = 1_000_000;
 
@@ -269,6 +270,14 @@ export class DemoDevice {
     return { data: out, rssi: Math.max(-95, Math.min(-20, ap.rssi + Math.floor(r() * 7) - 3)), rate, bb, fcsErr };
   }
 
+  /** Wraps an 802.11 frame without FCS as a captured HT MCS3 frame (hx FPV demo). */
+  withFcs(data, rssi) {
+    const out = new Uint8Array(data.length + 4);
+    out.set(data);
+    new DataView(out.buffer).setUint32(data.length, crc32(data), true);
+    return { data: out, rssi, rate: 3, bb: W.BB.HT, fcsErr: false };
+  }
+
   driverPass(f) {
     const t = (f[0] >> 2) & 3, sub = f[0] >> 4, m = this.cfg.typeMask >>> 0;
     if (t === 0) return !!(m & 1);
@@ -307,6 +316,10 @@ export class DemoDevice {
       const rate = (this.cfg.channel <= 14 ? 600 : 250) * (this.faults.saturate ? 40 : 1);
       this.carry += rate * dt;
       while (this.carry >= 1) { this.carry--; this.capture(this.frame(this.cfg.channel), now); }
+      if (this.cfg.channel === DEMO_CHANNEL) {
+        this.hx ??= new HxAirSim(this.rng);
+        for (const f of this.hx.poll(now)) this.capture(this.withFcs(f, -50 - Math.floor(this.rng() * 5)), now);
+      }
     }
     if (this.session && now - this.lastRx > WATCHDOG_MS) {
       this.session = false;

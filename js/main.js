@@ -11,6 +11,7 @@ import { initRadio } from './ui/radio.js';
 import { initFilter } from './ui/filterpanel.js';
 import { initStats } from './ui/stats.js';
 import { initDevice } from './ui/device.js';
+import { initFpv } from './ui/fpv.js';
 import { initLog } from './ui/logpanel.js';
 import { initSettings } from './ui/settingspanel.js';
 import { initPackets } from './ui/packets.js';
@@ -254,6 +255,7 @@ document.addEventListener('keydown', (e) => {
 initRadio($('#panel-radio'));
 initFilter($('#panel-filter'));
 initStats($('#panel-stats'));
+initFpv($('#panel-fpv'));
 initDevice($('#panel-device'));
 initLog($('#panel-log'));
 initSettings($('#panel-settings'), { applyTheme });
