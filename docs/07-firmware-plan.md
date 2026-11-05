@@ -222,6 +222,12 @@ Each stage ends with a **gate**: concrete commands whose exit code 0 means done.
 - Optional injector end-to-end (`ctpbench inject`, doc 06 §5) for filter correctness on real RF.
 - **Gate:** baselines saved; soak report clean; `--compare-baseline` in CI for any later performance change.
 
+*M6 status (2026-11-05, release 0.1.0 on the XIAO ESP32-C5):*
+- `ctpbench fuzz --duration 30m` (seed 2026): 939,800 malformed frames, all 46,990 interleaved PINGs answered, no reset.
+- `ctpbench soak --duration 24h` (FI, ch 1/6/11/13/36/44, config change every 20 s, host vanish/reopen every 15 min): 0 anomalies, 0 resets, 2.2 M packets, 4,319 config changes, 95 reopens, flash_writes 0, RTT p99 1.3–1.4 ms throughout, device uptime continuous (89,359 s). Small counted losses as designed: drop_ring 1,131 (USB saturated during full-frame bursts), 14 host-side seq gaps (port closes mid-stream).
+- PING RTT under full USB saturation: p99 3.0 ms (M3). Throughput baseline: docs/measurements/throughput-usb-v6.0.2.json.
+- Open: stack high-water reporting (not implemented), injector end-to-end (needs a second dongle).
+
 ### M7 – Release v1
 - **Semantic versioning** per doc 03 §11. The version comes from the git tag `vMAJOR.MINOR.PATCH` via `git describe`. The build fails if the tag isn't strict semver. Untagged builds get the `dev` flag; uncommitted changes set `dirty`.
   - The version is written into `PROJECT_VER` (→ `esp_app_desc_t.version`) and the packed `fw_version`.

@@ -1,0 +1,32 @@
+{
+  "command": "ctpbench --seed 5 soak --duration 24h --report-every 10m --reopen-every 15m --country FI --channels 1,6,11,13,36,44",
+  "firmware": "0.1.0 d253ef148b160d29",
+  "summary": {
+    "anomalies": null,
+    "config_changes": 4319,
+    "device_resets": 0,
+    "duration": "24h0m0s",
+    "ok": true,
+    "packets": 2206249,
+    "reopens": 95,
+    "report": "bench-out/soak-24h/soak.jsonl",
+    "seed": 5
+  },
+  "last_report": {
+    "t": "2026-11-05T21:10:55+02:00",
+    "elapsed": "24h0m0s",
+    "packets": 2206249,
+    "pkt_per_s": 10.159999998137334,
+    "dev_rx_total": 4338645,
+    "dev_drop_ring": 1131,
+    "host_link_lost": 14,
+    "device_gaps": 13,
+    "rtt_p99_ms": 1.408,
+    "device_resets": 0,
+    "reopens": 95,
+    "config_changes": 4319,
+    "device_uptime_s": 89358.810419,
+    "anomalies": 0
+  },
+  "max_rtt_p99_ms": 2.101
+}
