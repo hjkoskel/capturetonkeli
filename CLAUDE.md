@@ -73,5 +73,5 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 - Not yet: ctpbench `fuzz`, `soak`, `inject`; darwin/windows serial; release.yml (tagging), GitHub repo.
 - Gates without hardware: `make lint host-test fuzz-short diff-test go-test js-test fw-host-conf fw fw-smoke` (= `make ci`).
 - Web UI: errors always go through js/errors.js `describe()` (title + explanation + actions) and are shown inline or as a banner and logged; never `alert()`. Test UI changes against demo mode first.
-- Open decision: project licence (docs/08 D2). Go module path is `github.com/hjkoskel/capturetonkeli`.
+- Licence: Apache-2.0, Copyright 2026 Henri Koskela (docs/08 D2). Firmware third-party notices: THIRD_PARTY_NOTICES.md + THIRD_PARTY_LICENSES.txt (regenerate with tools/third_party_licenses.sh when the IDF pin changes). Go module path is `github.com/hjkoskel/capturetonkeli`.
 - Stopping helper processes: use `pkill -x ctp_fw_host` (never `pgrep -f`/`pkill -f` with a pattern that also matches your own shell).

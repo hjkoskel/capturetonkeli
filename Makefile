@@ -206,8 +206,13 @@ release: host-test go-test js-test
 	rm -rf firmware/build-release
 	CTK_RELEASE_VERSION=$(VERSION) $(MAKE) --no-print-directory fw-release-build
 	go run ./cmd/ctpbench fw bundle --build firmware/build-release --out fw
+	cp $(FW_LEGAL) fw/
 	go build -o $(CTPBENCH) ./cmd/ctpbench
 	@echo "release $(VERSION) bundled into fw/: review, commit, open a PR"
+
+# Licence files shipped with the firmware images (served by Pages, embedded in ctpbench).
+# Regenerate THIRD_PARTY_LICENSES.txt with tools/third_party_licenses.sh when the IDF pin changes.
+FW_LEGAL = LICENSE NOTICE THIRD_PARTY_NOTICES.md THIRD_PARTY_LICENSES.txt
 
 # docs/11 §4 bundle-check: rebuild the release from source, compare with fw/ byte-for-byte.
 BUNDLE_VERSION = $(shell python3 -c "import json;print(json.load(open('fw/manifest.json'))['version'])" 2>/dev/null)
@@ -216,6 +221,7 @@ bundle-check:
 	rm -rf firmware/build-check
 	CTK_RELEASE_VERSION=$(BUNDLE_VERSION) $(MAKE) --no-print-directory fw-check-build
 	@python3 -c "import json,sys,filecmp;m=json.load(open('fw/manifest.json'));src={'bootloader':'bootloader/bootloader.bin','partition-table':'partition_table/partition-table.bin','app':'ctk.bin'};bad=[p['file'] for p in m['parts'] if not filecmp.cmp('fw/'+p['file'],'firmware/build-check/'+src[p['name']],shallow=False)];print('bundle-check: fw/ matches a rebuild of $(BUNDLE_VERSION)' if not bad else 'bundle-check: DIFFERS: '+', '.join(bad));sys.exit(1 if bad else 0)"
+	@for f in $(FW_LEGAL); do cmp -s $$f fw/$$f || { echo "bundle-check: fw/$$f differs from $$f (make release copies it)" >&2; exit 1; }; done
 
 fw-check-build:
 	$(call idf_build,-B build-check -D SDKCONFIG=build-check/sdkconfig build,firmware)

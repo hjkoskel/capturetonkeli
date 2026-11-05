@@ -226,6 +226,8 @@ function showAbout() {
     `Web UI for the XIAO ESP32-C5 capture dongle. Protocol CTP v${W.PROTO_VER}. Page firmware bundle: ${app.manifest ? app.manifest.version : 'none (development page)'}.`,
     'Receive-only: the dongle never transmits. Capture only networks you own or are authorised to test.',
     h('p', h('a', { href: 'docs/04-web-ui-spec.md' }, 'Specification'), ' · ', h('a', { href: 'docs/03-usb-link-protocol.md' }, 'Protocol')),
+    h('p.small', 'Copyright 2026 Henri Koskela. Licensed under the ', h('a', { href: 'LICENSE' }, 'Apache License 2.0'),
+      '. The firmware images also contain ESP-IDF and other ', h('a', { href: 'THIRD_PARTY_NOTICES.md' }, 'third-party software'), '.'),
   ]);
 }
 function showHelp() {

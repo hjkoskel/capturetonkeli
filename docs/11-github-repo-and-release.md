@@ -34,7 +34,8 @@ This doc is normative for repo layout, hosting and release. It supersedes the la
 ├── docs/                      specs 01–11 (mirrors the project research docs)
 ├── .github/workflows/         ci.yml, release.yml
 ├── Makefile                   top-level entry points (doc 07 §7 targets + web/go targets)
-├── CLAUDE.md  README.md  LICENSE
+├── CLAUDE.md  README.md  LICENSE  NOTICE  THIRD_PARTY_NOTICES.md  THIRD_PARTY_LICENSES.txt
+├── tools/                     serve.py, third_party_licenses.sh
 ```
 - **Everything in the repo is publicly reachable** under the Pages URL: sources, docs, firmware. That's acceptable for an open project. The Service Worker precaches only the explicit web-app file list (§3), never the whole repo.
 - `fw/` holds **only the current release**. Older releases are kept as GitHub Release assets (§4).

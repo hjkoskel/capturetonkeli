@@ -1,0 +1,7 @@
+capturetonkeli
+Copyright 2026 Henri Koskela
+
+This product is licensed under the Apache License, Version 2.0 (LICENSE).
+
+The firmware images in fw/ and the ctpbench binary (which embeds them)
+also contain third-party software; see THIRD_PARTY_NOTICES.md.

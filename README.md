@@ -45,4 +45,6 @@ make serve-https                          # web UI on the lab LAN (self-signed h
 Capture only networks you own or are authorised to test. Intercepting other people's communications may be illegal where you live.
 
 ## Licence
-To be decided (see docs/08 D2).
+Copyright 2026 Henri Koskela. Licensed under the [Apache License 2.0](LICENSE) (see also [NOTICE](NOTICE)).
+
+The firmware images in `fw/` (also embedded in ctpbench) are built with ESP-IDF and contain third-party software under Apache-2.0, MIT and BSD licences: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), full texts in [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt).

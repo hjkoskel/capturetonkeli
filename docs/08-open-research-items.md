@@ -79,7 +79,7 @@ If C1 shows that HE (Wi-Fi 6) data frames are only partially visible, that is a 
 | # | Item | Note |
 |---|---|---|
 | D1 | **Form factor**: XIAO has a USB-C *receptacle*, so a "dongle" needs a short C-to-C cable or a male-to-female adapter, an enclosure, and an antenna mount | 3D-printed case with U.FL antenna pigtail |
-| D2 | **Licences** (needed before the GitHub repo goes public): choose the project licence. Compatible pieces: ESP-IDF Apache-2.0, Unity MIT; Espressif Wi-Fi blobs are redistributable binaries | Affects what can be bundled in releases |
+| D2 ✅ | **Licences: resolved (2026-11-05) → Apache-2.0**, Copyright 2026 Henri Koskela (`LICENSE`, `NOTICE`). Matches ESP-IDF and adds an explicit patent grant. Third-party code in the firmware images (ESP-IDF, Wi-Fi/PHY blobs, FreeRTOS, wpa_supplicant, lwIP, Mbed TLS, picolibc/newlib, TLSF) is listed in `THIRD_PARTY_NOTICES.md` with full texts in `THIRD_PARTY_LICENSES.txt` (`tools/third_party_licenses.sh`); `make release` copies all four files into `fw/` | Recheck the list when the IDF pin changes |
 | D3 ✅ | **Web UI hosting & version pairing: resolved → doc 11.** GitHub Pages from repo root, always latest, no per-version URLs; old dongles are updated via the mismatch prompt | doc 03 §11, doc 04 §4.1 |
 | D4 | **Legal notice wording** (doc 02 §5, doc 04 §15) | Keep short; not legal advice |
 
