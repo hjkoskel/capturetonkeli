@@ -7,6 +7,9 @@ import * as D from './dot11.js';
 import * as P from './pcapng.js';
 import { compileDisplayFilter } from './display-filter.js';
 import { Receiver as HxReceiver } from './hxfpv.js';
+import * as OHD from './openhd.js';
+import { Depacketizer } from './rtp.js';
+import * as MAV from './mavlink.js';
 
 let dec = new Decoder();
 let lastSeq = -1;
@@ -58,6 +61,90 @@ function shownUnit() {
 }
 function hxPush(meta, data) {
   try { hx.push(W.frameBytes(meta, data), { rssi: meta.rssi, channel: meta.channel }); } catch (e) { host.hxErrors = (host.hxErrors ?? 0) + 1; host.hxLastError = String(e.message ?? e); }
+}
+
+// ---- OpenHD receiver (docs/13) ---------------------------------------------------------------
+// Decodes every OpenHD unit; access units of the shown unit/camera go to the
+// main thread (WebCodecs). If the display falls behind, sending stops until
+// the next key frame. Telemetry is parsed here (MAVLink), recordings are
+// collected here so they continue while the tab is hidden.
+const ohdView = { on: false, unit: 'auto', cam: 0, codec: 'auto', inFlight: 0, needKey: true, waitSince: 0, sent: 0, skipped: 0, forced: 0 };
+const ohdFlight = new Map(); // unit id → MAV.FlightState
+const ohdDepack = new Map(); // `${unit}:${cam}` → Depacketizer
+let ohdRec = null;           // { video: {unit, cam, codec, parts, size, aus} | null, tlog: {parts, size, msgs} | null, started }
+let ohdShown = null;
+const ohd = new OHD.Receiver({
+  now: () => performance.now(),
+  onRtp(u, cam, pkt, info) {
+    const want = (ohdView.on && u.id === ohdShown && cam === ohdView.cam) || (ohdRec?.video && ohdRec.video.unit === u.id && ohdRec.video.cam === cam);
+    if (!want) return;
+    const key = `${u.id}:${cam}`;
+    let d = ohdDepack.get(key);
+    if (!d) { d = new Depacketizer({ codec: ohdView.codec, onAU: (au) => ohdAU(u, cam, au) }); ohdDepack.set(key, d); }
+    d.push(pkt, info);
+  },
+  onTelemetry(u, data, dir) {
+    let fs = ohdFlight.get(u.id);
+    if (!fs) { fs = new MAV.FlightState(); ohdFlight.set(u.id, fs); }
+    const msgs = MAV.parse(data);
+    fs.add(msgs);
+    if (ohdRec?.tlog) for (const m of msgs) if (m.crcOk !== false) { const r = MAV.tlogRecord(m.raw); ohdRec.tlog.parts.push(r); ohdRec.tlog.size += r.length; ohdRec.tlog.msgs++; }
+    void dir;
+  },
+  onSession(u, kind) { if (kind === 'restart') { ohdFlight.delete(u.id); for (const k of ohdDepack.keys()) if (k.startsWith(`${u.id}:`)) ohdDepack.delete(k); } },
+});
+function ohdAU(u, cam, au) {
+  const r = ohdRec?.video;
+  let recorded = false;
+  if (r && r.unit === u.id && r.cam === cam && (r.aus || au.key)) { r.parts.push(au.data); r.size += au.data.length; r.aus++; r.codec = au.codec; recorded = true; }
+  if (!ohdView.on || u.id !== ohdShown || cam !== ohdView.cam) return;
+  const now = performance.now();
+  if (ohdView.inFlight > 20) { ohdView.needKey = true; ohdView.waitSince = now; }
+  let forced = false;
+  if (ohdView.needKey) {
+    // streams with intra refresh never send IDR frames: after 3 s, start at any frame that has parameter sets cached
+    if (!au.key && !(au.hasParams && now - ohdView.waitSince > 3000 && ohdView.inFlight < 5)) { ohdView.skipped++; return; }
+    forced = !au.key;
+    if (forced) ohdView.forced++;
+    ohdView.needKey = false;
+  }
+  ohdView.inFlight++; ohdView.sent++;
+  const data = recorded ? au.data.slice() : au.data;
+  self.postMessage({ t: 'ohd-au', unit: u.id, cam, codec: au.codec, codecString: au.codecString, key: au.key || forced, forced, damaged: au.damaged, data }, [data.buffer]);
+}
+function ohdShownUnit() {
+  const units = [...ohd.units.values()].filter((u) => u.dir === OHD.UID.AIR);
+  if (ohdView.unit !== 'auto') return units.some((u) => u.id === ohdView.unit) ? ohdView.unit : null;
+  let best = null;
+  const now = performance.now();
+  for (const u of units) if (now - u.last < 3000 && (!best || u.st.video[0] + u.st.video[1] > best.st.video[0] + best.st.video[1])) best = u;
+  return best?.id ?? null;
+}
+function ohdPush(meta, data) {
+  try { ohd.push(W.frameBytes(meta, data), { rssi: meta.rssi, channel: meta.channel }); } catch (e) { host.ohdErrors = (host.ohdErrors ?? 0) + 1; host.ohdLastError = String(e.message ?? e); }
+}
+function ohdSummary() {
+  const s = ohd.summary(performance.now());
+  if (!s.units.length && !s.g.ohdFrames[1] && !s.g.ohdFrames[2]) return null;
+  const prev = ohdShown;
+  ohdShown = ohdShownUnit();
+  if (prev !== ohdShown) ohdView.needKey = true, ohdView.waitSince = performance.now();
+  for (const id of ohdFlight.keys()) if (!s.units.some((u) => u.id === id)) ohdFlight.delete(id);
+  for (const u of s.units) {
+    u.flight = ohdFlight.get(u.id)?.summary() ?? null;
+    const d0 = ohdDepack.get(`${u.id}:0`), d1 = ohdDepack.get(`${u.id}:1`);
+    u.rtp = [d0 ? { ...d0.st, codec: d0.codec } : null, d1 ? { ...d1.st, codec: d1.codec } : null];
+  }
+  const rec = ohdRec ? { video: ohdRec.video ? { size: ohdRec.video.size, aus: ohdRec.video.aus } : null, tlog: ohdRec.tlog ? { size: ohdRec.tlog.size, msgs: ohdRec.tlog.msgs } : null, ms: performance.now() - ohdRec.started } : null;
+  return { ...s, shown: ohdShown, view: { sent: ohdView.sent, skipped: ohdView.skipped, forced: ohdView.forced, inFlight: ohdView.inFlight }, rec };
+}
+function ohdRecStop() {
+  if (!ohdRec) return;
+  const out = [];
+  if (ohdRec.video?.aus) out.push({ kind: 'video', codec: ohdRec.video.codec, unit: ohdRec.video.unit, parts: ohdRec.video.parts });
+  if (ohdRec.tlog?.msgs) out.push({ kind: 'tlog', parts: ohdRec.tlog.parts });
+  ohdRec = null;
+  self.postMessage({ t: 'ohd-rec-data', files: out });
 }
 
 function addMark(text, kind = 'info') { pendingMarks.push({ text, kind }); }
@@ -137,6 +224,7 @@ function onFrame(h, body) {
     lastRxSeq = p.meta.rxSeq;
     store(h, p.meta, p.data);
     hxPush(p.meta, p.data);
+    ohdPush(p.meta, p.data);
     return;
   }
   if (h.type === W.T.EVT_RESET) { addMark('Dongle restarted', 'reset'); lastRxSeq = -1; }
@@ -157,6 +245,8 @@ function row(abs) {
   const fl = D.flagsText(h);
   if (fl) info += ` · ${fl}`;
   if (h.truncated && m.capLen < m.origLen) info += ' · [truncated]';
+  const oh = OHD.parseFrame(W.frameBytes(p.meta, p.data));
+  if (oh) info = `OpenHD ${oh.uid === 1 ? 'air' : oh.uid === 2 ? 'ground' : `uid ${oh.uid}`} ${OHD.portName(oh.port)}${oh.enc ? ' (encrypted)' : ''} · nonce ${oh.nonce}`;
   return {
     n: abs + 1, t: (m.tsUs - (firstTs ?? m.tsUs)) / 1e6, tsUs: m.tsUs, hostMs: p.hostMs, ch: m.channel, ht40: !!(m.flags & W.PKT.HT40),
     rssi: m.rssi, rate, len: m.capLen < m.origLen ? `${m.capLen}/${m.origLen}` : `${m.origLen}`, trunc: m.capLen < m.origLen,
@@ -242,7 +332,8 @@ setInterval(() => {
   const now = performance.now(), dt = (now - rateWin.t) / 1000;
   const s = { ...host, decoder: { ...dec.stats }, stored: next - oldest, received: next, pps: (next - rateWin.pkts) / dt, bps: (host.bytesIn - rateWin.bytes) / dt,
     fill: (next - oldest) / N, recording: rec ? { packets: rec.packets } : null,
-    fpv: hx.units.size || hx.wrongVersion ? { ...hx.summary(), shown: shownUnit(), skipped: fpvView.skipped } : null };
+    fpv: hx.units.size || hx.wrongVersion ? { ...hx.summary(), shown: shownUnit(), skipped: fpvView.skipped } : null,
+    ohd: ohdSummary() };
   rateWin = { t: now, pkts: next, bytes: host.bytesIn };
   host.parseMs = 0;
   self.postMessage({ t: 'tick', s });
@@ -270,6 +361,22 @@ self.onmessage = (e) => {
     case 'fpv-view': fpvView.on = !!m.on; fpvView.unit = m.unit ?? 'auto'; break;
     case 'fpv-ack': fpvView.inFlight = Math.max(0, fpvView.inFlight - 1); break;
     case 'fpv-reset': hx.reset(); fpvView.inFlight = 0; fpvView.skipped = 0; break;
+    case 'ohd-view':
+      Object.assign(ohdView, { on: !!m.on, unit: m.unit ?? 'auto', cam: m.cam ?? 0 });
+      if (m.codec && m.codec !== ohdView.codec) { ohdView.codec = m.codec; for (const d of ohdDepack.values()) d.setCodec(m.codec); }
+      ohdShown = ohdShownUnit(); ohdView.needKey = true; ohdView.waitSince = performance.now(); ohdView.inFlight = 0;
+      break;
+    case 'ohd-ack': ohdView.inFlight = Math.max(0, ohdView.inFlight - 1); break;
+    case 'ohd-need-key': ohdView.needKey = true; ohdView.waitSince = performance.now(); break;
+    case 'ohd-keys': ohd.setKeys(m.keys); ohdFlight.clear(); ohdDepack.clear(); break;
+    case 'ohd-options': ohd.setOptions(m.opts); break;
+    case 'ohd-reset': ohd.reset(); ohdFlight.clear(); ohdDepack.clear(); ohdView.needKey = true; ohdView.inFlight = 0; ohdView.sent = ohdView.skipped = ohdView.forced = 0; break;
+    case 'ohd-rec-start': {
+      const unit = ohdShownUnit();
+      ohdRec = { started: performance.now(), video: m.video && unit !== null ? { unit, cam: ohdView.cam, codec: null, parts: [], size: 0, aus: 0 } : null, tlog: m.tlog ? { parts: [], size: 0, msgs: 0 } : null };
+      break;
+    }
+    case 'ohd-rec-stop': ohdRecStop(); break;
     case 'store-size': alloc(Math.max(10000, Math.min(2000000, m.n | 0))); firstTs = null; break;
     case 'rec-start': rec = { chunks: [P.header(m.opts)], size: 0, packets: 0, filtered: !!m.filtered }; rec.size = rec.chunks[0].length; break;
     case 'rec-stop': flushRec(); self.postMessage({ t: 'rec-stopped', packets: rec?.packets ?? 0 }); rec = null; break;

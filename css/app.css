@@ -184,11 +184,15 @@ dialog menu { display: flex; gap: 8px; justify-content: flex-end; padding: 0; ma
 .fpv-osd { position: absolute; left: 6px; right: 6px; top: 4px; color: #fff; font: 11px var(--mono); text-shadow: 0 0 3px #000, 0 0 3px #000; pointer-events: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fpv-stage { display: none; }
-main#app.fpv-large .fpv-stage { display: flex; grid-column: 2; grid-row: 1 / 4; background: #000; min-height: 0; padding: 8px; }
-main#app.fpv-large .fpv-stage .fpv-video { flex: 1; aspect-ratio: auto; }
-main#app.fpv-large .fpv-stage .fpv-osd { font-size: 14px; }
+main#app.fpv-large .fpv-stage.on { display: flex; grid-column: 2; grid-row: 1 / 4; background: #000; min-height: 0; padding: 8px; }
+main#app.fpv-large .fpv-stage.on .fpv-video { flex: 1; aspect-ratio: auto; }
+main#app.fpv-large .fpv-stage.on .fpv-osd { font-size: 14px; }
 main#app.fpv-large .packets, main#app.fpv-large .detail { display: none; }
 .fpv-osd.fec { color: #ffd34d; }
+.fpv-video.wide { aspect-ratio: 16 / 9; }
+.fpv-osd-bottom { top: auto; bottom: 4px; }
+.fpv-system { gap: 4px; margin-bottom: 6px; }
+.fpv-system .seg[aria-pressed="true"] { background: var(--accent, #2a6df4); color: #fff; border-color: transparent; }
 .ok-text { color: var(--ok, #1a7f37); }
 .warn-text { color: var(--warn, #b26b00); }
 

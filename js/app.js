@@ -62,6 +62,8 @@ class App extends EventTarget {
         break;
       case 'tick': this.host = m.s; this.emit('host', m.s); break;
       case 'fpv-frame': this.emit('fpv-frame', m); break;
+      case 'ohd-au': this.emit('ohd-au', m); break;
+      case 'ohd-rec-data': this.emit('ohd-rec-data', m); break;
       case 'recdata': this.writeRec(m.buf); break;
       case 'rec-stopped': this.finishRec(m.packets); break;
       case 'error': this.fail('worker', new Error(m.message), 'Packet processing', { bannerKey: 'worker' }); break;

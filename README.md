@@ -41,6 +41,7 @@ make serve-https                          # web UI on the lab LAN (self-signed h
 10. [ESP-IDF v6 API audit](docs/10-idf-v6-api-audit.md)
 11. [GitHub repo, Pages & release](docs/11-github-repo-and-release.md)
 12. [FPV viewer for hx-esp32-cam-fpv](docs/12-hx-fpv-viewer.md)
+13. [OpenHD passive receiver](docs/13-openhd-passive-receiver.md)
 
 ## Legal
 Capture only networks you own or are authorised to test. Intercepting other people's communications may be illegal where you live.
