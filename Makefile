@@ -47,7 +47,7 @@ vectors:
 	go generate ./...
 
 js-test:
-	node --test test/js/
+	node --test 'test/js/*.test.mjs'
 
 go-test:
 	go vet ./...

@@ -2,6 +2,7 @@ package filter
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/hjkoskel/capturetonkeli/ctp/codec"
@@ -120,8 +121,18 @@ func FuzzDecode(f *testing.F) {
 			// offsets > MaxOffset are legal on the wire but not in the editor model
 			return
 		}
-		if string(b2) != string(b) {
-			t.Fatalf("roundtrip mismatch\n% x\n% x", b, b2)
+		// Fields whose enable bit is clear are ignored on decode and written
+		// as 0 on encode (docs/03 §4), so b2 is the canonical form of b: it
+		// must decode to the same filter and re-encode to itself.
+		s2, err := Decode(b2)
+		if err != nil {
+			t.Fatalf("canonical body rejected: %v\n% x", err, b2)
+		}
+		if !reflect.DeepEqual(s, s2) {
+			t.Fatalf("roundtrip changed the filter\n% x\n% x", b, b2)
+		}
+		if b3, _ := s2.Encode(); string(b3) != string(b2) {
+			t.Fatalf("encode not canonical\n% x\n% x", b2, b3)
 		}
 	})
 }

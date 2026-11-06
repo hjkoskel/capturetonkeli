@@ -55,8 +55,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: node --test test/js/
+        with: { node-version: 24 }
+      - run: node --test 'test/js/*.test.mjs'
 
   web-check:
     runs-on: ubuntu-latest

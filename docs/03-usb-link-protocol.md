@@ -112,6 +112,7 @@ i8 rssi_min | u8 reserved | u16 len_min | u16 len_max
 repeat n_rules:  u8 n_terms (1..4)
   repeat n_terms: u16 offset | u8 len (1..16) | u8 tflags (bit0 negate) | value[len] | mask[len]
 ```
+`rssi_min`, `len_min` and `len_max` are ignored when their enable bit is clear (any value accepted); encoders write 0 there. `reserved` must be 0.
 Pass = global conditions AND (n_rules == 0 OR any rule with all terms matching). Terms are evaluated on the full frame before snaplen. `rules_crc32` = CRC-32 over this body. Limits: ≤16 rules × ≤4 terms × ≤16 bytes → max body 2 328 B, always fits in one frame.
 
 `HELLO` response = `{u8 proto_ver, u32 fw_version, u8 fw_flags, u8 fw_build_id[8], u8 mac[6], u32 caps (bit0 5GHz, bit1 HT40, bit2 MANUAL_COUNTRY (legacy manual channel range available, doc 10 §2), …), u16 max_frame, u16 max_rules, u64 device_time_us, u32 host_nonce (echo)}`.
