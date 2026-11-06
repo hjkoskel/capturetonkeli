@@ -36,6 +36,10 @@ Items already scheduled in doc 07 milestones (USB throughput, DTR/RTS, channel m
 - The kit includes a 2.4 GHz FPC antenna on the U.FL connector. For real 5 GHz capture a **dual-band U.FL antenna** is needed.
 - **Research/spike:** pick 2–3 dual-band U.FL antennas (FPC and small rod) and compare RSSI on ch 36/149 vs the stock antenna. Also include the antenna in the enclosure design (§C1).
 
+### A5. HT40 capture on the C5 ⏸ postponed (decided 2026-11-04)
+- M3 finding: in `WIFI_MODE_NULL`, IDF v6.0.2 rejects every STA bandwidth/protocol call (`esp_wifi_set_bandwidth`, `esp_wifi_set_bandwidths`, `esp_wifi_set_protocols` → `ESP_ERR_INVALID_ARG`). v1 firmware therefore clears `caps.HT40`.
+- HT40 is believed to be achievable (e.g. idle `WIFI_MODE_STA` with 11n-only protocols, or another API path). Postponed: revisit after M5. Check that nothing is transmitted in the chosen mode and what PPDU formats are lost while in HT40.
+
 ---
 
 ## B. Desk research still to do (hours each)
@@ -75,7 +79,7 @@ If C1 shows that HE (Wi-Fi 6) data frames are only partially visible, that is a 
 | # | Item | Note |
 |---|---|---|
 | D1 | **Form factor**: XIAO has a USB-C *receptacle*, so a "dongle" needs a short C-to-C cable or a male-to-female adapter, an enclosure, and an antenna mount | 3D-printed case with U.FL antenna pigtail |
-| D2 | **Licences** (needed before the GitHub repo goes public): choose the project licence. Compatible pieces: ESP-IDF Apache-2.0, Unity MIT; Espressif Wi-Fi blobs are redistributable binaries | Affects what can be bundled in releases |
+| D2 ✅ | **Licences: resolved (2026-11-05) → Apache-2.0**, Copyright 2026 Henri Koskela (`LICENSE`, `NOTICE`). Matches ESP-IDF and adds an explicit patent grant. Third-party code in the firmware images (ESP-IDF, Wi-Fi/PHY blobs, FreeRTOS, wpa_supplicant, lwIP, Mbed TLS, picolibc/newlib, TLSF) is listed in `THIRD_PARTY_NOTICES.md` with full texts in `THIRD_PARTY_LICENSES.txt` (`tools/third_party_licenses.sh`); `make release` copies all four files into `fw/` | Recheck the list when the IDF pin changes |
 | D3 ✅ | **Web UI hosting & version pairing: resolved → doc 11.** GitHub Pages from repo root, always latest, no per-version URLs; old dongles are updated via the mismatch prompt | doc 03 §11, doc 04 §4.1 |
 | D4 | **Legal notice wording** (doc 02 §5, doc 04 §15) | Keep short; not legal advice |
 

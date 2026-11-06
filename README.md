@@ -9,7 +9,14 @@ A Seeed **XIAO ESP32-C5** (dual-band 2.4 / 5 GHz Wi-Fi 6) captures 802.11 frames
 Captures are saved as pcapng with radiotap headers, ready for Wireshark. The dongle only receives; it never transmits.
 
 ## Status
-Specification phase. Implementation starts at milestone M0, see [docs/07](docs/07-firmware-plan.md).
+Milestones M0–M2 (no hardware needed) implemented: Go reference library + simulator + conformance suite, the portable firmware core running on a PC pseudo-terminal, and the ESP-IDF firmware build. Hardware bring-up (M3+) and the web UI are next; see [docs/07](docs/07-firmware-plan.md).
+
+```
+make ci                                   # everything that runs without hardware
+go run ./cmd/ctpbench --port sim info     # talk to the simulator
+make fw-host-conf                         # real firmware core on a PTY + conformance
+make serve-https                          # web UI on the lab LAN (self-signed https, USB works)
+```
 
 ## Repository layout
 | Path | Content |
@@ -33,9 +40,12 @@ Specification phase. Implementation starts at milestone M0, see [docs/07](docs/0
 9. [RAM boot vs auto-update decision](docs/09-ram-boot-vs-auto-update.md)
 10. [ESP-IDF v6 API audit](docs/10-idf-v6-api-audit.md)
 11. [GitHub repo, Pages & release](docs/11-github-repo-and-release.md)
+12. [FPV viewer for hx-esp32-cam-fpv](docs/12-hx-fpv-viewer.md)
 
 ## Legal
 Capture only networks you own or are authorised to test. Intercepting other people's communications may be illegal where you live.
 
 ## Licence
-To be decided (see docs/08 D2).
+Copyright 2026 Henri Koskela. Licensed under the [Apache License 2.0](LICENSE) (see also [NOTICE](NOTICE)).
+
+The firmware images in `fw/` (also embedded in ctpbench) are built with ESP-IDF and contain third-party software under Apache-2.0, MIT and BSD licences: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), full texts in [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt).

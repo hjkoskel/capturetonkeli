@@ -1,0 +1,68 @@
+# CI (docs/11 §4). Hardware-in-the-loop never runs on GitHub-hosted runners.
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - run: make go-test
+      - name: vectors up to date
+        run: go run ./cmd/ctpbench vectors check --json
+      - name: fuzz (60 s per target)
+        run: |
+          for t in "FuzzDecoder ./ctp/codec" "FuzzDecode ./ctp/filter"; do
+            set -- $t; go test -run '^$' -fuzz "^$1\$" -fuzztime 60s "$2"
+          done
+
+  c-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build clang clang-tidy cppcheck
+      - run: make lint
+      - run: make host-test
+      - run: make host-test CC_HOST=clang
+      - run: make fuzz-short
+      - run: make diff-test
+      - run: make fw-host-conf
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: fw-host-conf, path: bench-out/ }
+
+  firmware:
+    runs-on: ubuntu-latest
+    container: docker.io/espressif/idf:v6.0.2  # must equal firmware/idf-version.txt
+    steps:
+      - uses: actions/checkout@v4
+      - name: pin matches container
+        run: test "$(cat firmware/idf-version.txt)" = "v6.0.2"
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: make fw BUILD_ENV=native
+      - run: make fw-smoke BUILD_ENV=native
+      - name: bundle-check (fw/ = rebuild from this commit, byte-for-byte)
+        run: make bundle-check BUILD_ENV=native
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: node --test 'test/js/*.test.mjs'
+
+  web-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: no external URLs / absolute paths in the web UI
+        run: |
+          ! grep -nE '(src|href)="(/|https?:)' index.html $(ls js/*.js css/*.css 2>/dev/null) || exit 1
+          test -f .nojekyll

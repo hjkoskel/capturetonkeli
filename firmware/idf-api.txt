@@ -41,7 +41,7 @@ field wifi_pkt_rx_ctrl_t.rx_state
 field wifi_pkt_rx_ctrl_t.dump_len
 field wifi_pkt_rx_ctrl_t.cur_bb_format
 field wifi_pkt_rx_ctrl_t.channel
-field wifi_pkt_rx_ctrl_t.secondary_channel
+field wifi_pkt_rx_ctrl_t.second            # C5 (MAC v3) name; docs/10 said secondary_channel
 field wifi_pkt_rx_ctrl_t.noise_floor
 field wifi_pkt_rx_ctrl_t.timestamp
 macro WIFI_INIT_CONFIG_DEFAULT
@@ -76,7 +76,7 @@ func esp_rom_crc32_le
 func esp_task_wdt_add
 func esp_task_wdt_reset
 func xTaskCreateStatic
-func xQueueCreateStatic
+# xQueueCreateStatic: not used (core has its own SPSC queues)
 func xTaskDelayUntil
 func uxTaskGetStackHighWaterMark
 macro __NOINIT_ATTR
@@ -89,3 +89,32 @@ kconfig CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE
 kconfig CONFIG_APP_REPRODUCIBLE_BUILD
 kconfig CONFIG_ESP_TASK_WDT_EN
 kconfig CONFIG_ESP_BROWNOUT_DET
+kconfig CONFIG_FREERTOS_HZ
+
+# --- added during M0 implementation
+header esp_event.h
+header esp_mac.h
+func esp_event_loop_create_default
+func esp_wifi_get_country
+func esp_read_mac
+macro xTaskNotifyGive
+macro ulTaskNotifyTake
+macro IRAM_ATTR
+enum WIFI_COUNTRY_POLICY_MANUAL
+enum WIFI_SECOND_CHAN_ABOVE
+enum WIFI_SECOND_CHAN_BELOW
+enum WIFI_PKT_MISC
+enum ESP_MAC_WIFI_STA
+kconfig CONFIG_ESP_TASK_WDT_PANIC
+kconfig CONFIG_ESP_TASK_WDT_TIMEOUT_S
+kconfig CONFIG_ESP_SYSTEM_PANIC_SILENT_REBOOT
+header soc/lp_aon_reg.h
+macro LP_AON_SYS_CFG_REG
+macro LP_AON_FORCE_DOWNLOAD_BOOT
+macro REG_SET_FIELD
+header soc/soc.h
+kconfig CONFIG_ESPTOOLPY_FLASHSIZE_8MB
+header esp_cpu.h
+func esp_cpu_get_cycle_count
+kconfig CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ
+field wifi_pkt_rx_ctrl_t.he_siga1

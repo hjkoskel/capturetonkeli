@@ -138,10 +138,18 @@ u8   data[cap_len]
 ---
 
 ## 7. Open items to test on hardware
+
+*M3/M4 results (2026-11-04, IDF v6.0.2, XIAO ESP32-C5):*
+- **1. Channel map** → `docs/measurements/channel-map-v6.0.2.json` (01: 2.4 1–11, 5 GHz 36–64 only; FI/DE: 1–13, 36–64, 100–140, 149–173; US: 1–11, 36–64, 100–144, 149–165, 173–177 (169 rejected); JP: 1–14, 36–64, 100–144; CN: 1–13, 36–64, 149–165; GB: 1–13, 36–64, 100–144, 149–165). The manual range 1..14 (legacy `esp_wifi_set_country`) unlocks ch 14 under every code and keeps the code's 5 GHz set. `ctp/regdom` mirrors these values.
+- **2. Frame-type misreport:** not present in v6.0.2. With the diagnostics variant (`make fw-diag flash-diag`), ~3,000 good-FCS frames on ch 13 gave a perfectly diagonal driver-type × FC-type matrix; mixed types occur only for FCS-error frames, which the driver files under DATA. The MASK_ALL + own FC parsing decision stays (it costs nothing).
+- **3. Channel switch latency:** SET_CHANNEL round trip 2.0 ms within a band, 3.0 ms across bands (incl. ~1 ms USB RTT).
+- **5. HT40:** not available in NULL mode (doc 10 §2, doc 08 A5, postponed).
+- Additional: the C5 driver delivers frames without FCS (doc 03 §9 rev 3, `no_fcs`).
+
 1. Exact channel list accepted per country code ("01", FI, US, JP) on 2.4 and 5 GHz; does manual `esp_wifi_set_country` unlock ch 14 / ch 169–177?
 2. Is the C5 frame-type misreport still present in our pinned IDF version?
 3. Channel switch latency within a band vs across bands.
-4. Sniffer callback rate at 100% channel load, plus how many frames the ring buffer drops before USB becomes the bottleneck.
+4. Sniffer callback rate at 100% channel load, plus how many frames the ring buffer drops before USB becomes the bottleneck. *(M4: callback cost avg 3.6 µs/frame (850 cycles), max ≈ 35 µs; USB saturates at ≈ 960 KB/s, see doc 01.)*
 5. Does HT40 setting in NULL mode actually widen the RX (capture HT40 data PPDUs)?
 
 ## Sources

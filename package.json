@@ -1,0 +1,1 @@
+{ "private": true, "type": "module", "description": "No npm packages: this file only marks js/ and test/js as ES modules for node --test." }

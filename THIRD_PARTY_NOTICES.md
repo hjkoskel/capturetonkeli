@@ -1,0 +1,44 @@
+# Third-party notices
+
+capturetonkeli itself is Copyright 2026 Henri Koskela, licensed under the
+Apache License 2.0 (`LICENSE`, `NOTICE`).
+
+The **web UI** (`index.html`, `js/`, `css/`), the **Go library and ctpbench
+sources** (`ctp/`, `cmd/`, `conformance/`) and the **firmware sources**
+(`firmware/`) contain no third-party code. Go programs link only the Go
+standard library (BSD-3-Clause, Copyright The Go Authors).
+
+The FPV viewer (`js/hxfec.js`, `js/hxfpv.js`, docs/12) implements the
+over-the-air format of hx-esp32-cam-fpv (MIT, Copyright 2021 jeanleflambeur
+and contributors) for interoperability; no code was copied. The test fixtures
+`test/js/fixtures/hxfpv-*.json` are output data generated with that project's
+C sources.
+
+The **firmware images** (`fw/*.bin`, also embedded in the `ctpbench` binary)
+are built with ESP-IDF (version pinned in `firmware/idf-version.txt`) and
+contain the following third-party software. Licence texts are in the ESP-IDF
+source tree at the paths given (relative to `esp-idf/components/`); see also
+ESP-IDF's `docs/en/COPYRIGHT.rst`.
+
+| Component | Copyright | Licence | Licence file |
+|---|---|---|---|
+| ESP-IDF (drivers, HAL, system, heap, logging, flash, NVS) | Espressif Systems (Shanghai) Co., Ltd. | Apache-2.0 | `../LICENSE` |
+| Espressif Wi-Fi, PHY and coexistence libraries (binary) | Espressif Systems (Shanghai) Co., Ltd. | Apache-2.0 | `esp_wifi/lib/LICENSE`, `esp_phy/lib/LICENSE`, `esp_coex/lib/LICENSE` |
+| FreeBSD net80211 (parts of the Wi-Fi library) | Sam Leffler, Errno Consulting | BSD-2-Clause | ESP-IDF `docs/en/COPYRIGHT.rst` |
+| FreeRTOS kernel | Amazon.com, Inc. or its affiliates | MIT | `freertos/FreeRTOS-Kernel/LICENSE.md` |
+| wpa_supplicant | Jouni Malinen and contributors | BSD-3-Clause | `wpa_supplicant/COPYING` |
+| lwIP | Swedish Institute of Computer Science | BSD-3-Clause | `lwip/lwip/COPYING` |
+| Mbed TLS / TF-PSA-Crypto | The Mbed TLS Contributors | Apache-2.0 (dual-licensed, used under Apache-2.0) | `mbedtls/mbedtls/LICENSE` |
+| Picolibc / Newlib C library | respective parties | BSD-style | `esp_libc/COPYING.picolibc`, `esp_libc/COPYING.NEWLIB` |
+| TLSF allocator | Matthew Conte | BSD-3-Clause | header of `heap/tlsf/tlsf.c` |
+| GCC runtime (libgcc) | Free Software Foundation | GPL-3.0 with GCC Runtime Library Exception (no obligations for the resulting image) | toolchain |
+
+The list was taken from the linker map of the release build
+(`firmware/build-release/ctk.map`). Recheck it when the ESP-IDF pin or the
+sdkconfig changes.
+
+The full texts of the non-Apache licences above are in
+`THIRD_PARTY_LICENSES.txt` (generated from the pinned ESP-IDF tree by
+`tools/third_party_licenses.sh`). `make release` copies `LICENSE`, `NOTICE`,
+this file and `THIRD_PARTY_LICENSES.txt` into `fw/`, so they travel with the
+images (GitHub Pages, ctpbench).

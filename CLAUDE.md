@@ -15,6 +15,7 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 | Firmware update / flash-wear decision | docs/09 |
 | ESP-IDF v6 API audit | docs/10 |
 | Repo layout, Pages, CI, release | docs/11 |
+| FPV viewer for hx-esp32-cam-fpv (web UI) | docs/12 |
 
 ## Repo facts
 - `index.html` at the repo root is the live GitHub Pages site (`https://<owner>.github.io/capturetonkeli/`). `main` = production. Never push to `main` directly; use PRs.
@@ -48,12 +49,14 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 
 ## Firmware / hardware dev loop (docs/06 §6)
 1. Build: `make fw`
-2. Flash: `make flash` (or `ctpbench fw flash --manifest firmware/build/manifest.json --yes`). If the port is busy: `ctpbench doctor`.
+2. Flash: `make flash` (= `ctpbench fw flash --manifest firmware/build/manifest.json --yes`: REBOOT 1 → ROM → differential write → MD5 verify → watchdog reset → HELLO; ~5 s if unchanged, ~13 s full). If interrupted, just rerun it. If the port is busy: `ctpbench doctor`.
+   - Do **not** use plain `idf.py flash` / esptool's default DTR/RTS reset, never toggle DTR/RTS, and never send CTP bytes to a chip in ROM mode: each wedged the C5 until replugged (docs/10 §3). Recovery: ask the user to replug (holding BOOT if needed), then `make flash`.
+   - The port can move between `/dev/ttyACM0` and `ACM1` after a reset; use `--port auto` (default).
    Release/HIL machines: `ctpbench fw ensure --yes` before testing.
 3. Smoke: `ctpbench info --json`
-4. Verify: `ctpbench conformance --json --out-dir bench-out/last` (exit 0 = pass)
+4. Verify: `ctpbench conformance --skip CTP-FLT-RF --traffic-country FI --traffic-channel 13 --json --out-dir bench-out/last` (exit 0 = pass; pick a busy channel)
 5. On failure read only `bench-out/last/report.json`; follow each failed case's `hint` and its `.trace.jsonl`.
-6. Performance changes: `ctpbench bench throughput --json --compare-baseline usb`.
+6. Performance changes: `make fw-synth flash-synth` (synthetic-traffic variant, no radio), then `ctpbench bench throughput --json --compare-baseline usb` and `ctpbench bench rtt-under-load`; reflash the normal build with `make fw flash` afterwards. Baseline copy: docs/measurements/throughput-usb-v6.0.2.json (bench-out/ is git-ignored).
 
 - Without hardware use `--port sim` (the Go simulator is the reference behaviour) or `make fw-host-conf` (real firmware core on a PTY).
 - Exit code 9 = firmware MAJOR.MINOR mismatch: **never** pass `--allow-fw-mismatch` on your own; update the dongle or ask the user.
@@ -61,7 +64,15 @@ USB dongle (Seeed XIAO ESP32-C5) that captures and filters 802.11 frames in prom
 - Anything that writes flash needs `--yes`; without it ctpbench prints the plan only.
 
 ## Local web development
-- `make serve` (static server on localhost; Web Serial/WebUSB work on localhost) or the UI's demo mode ("Try without hardware").
+- `make serve`: dev server on the whole lab LAN (http; USB works only as http://localhost on this machine). `make serve-https`: same with a self-signed certificate (bench-out/serve-cert/, git-ignored) so other lab machines and phones get Web Serial/WebUSB after accepting the warning once. Or the UI's demo mode ("Try without hardware").
 
-## Status
-Specification phase complete; implementation starts at milestone M0 (docs/07 §5). Open decision: project licence (docs/08 D2). In `go.mod`, replace `OWNER` with the GitHub account name.
+## Status (2026-11-04)
+- Hardware (M3 partial): flashing via REBOOT 1, full conformance passes on the XIAO C5 (2026-11-04). Findings in docs/10 §2–3, docs/03 rev 3 (`no_fcs`). No HT40 in NULL mode. Weak RSSI (−82…−91 dBm): check the antenna.
+- Done (branch `m0-m2-core`): Go reference (`ctp/` wire, codec, filter, regdom, fwver, sim, client; Linux serialport), conformance suite (39 cases), ctpbench subset, shared vectors + C headers; C core M1/M2 (`ctp_core`), `ctp_fw_host` on a PTY passes conformance; ESP-IDF ports + app build natively; IDF API smoke build.
+- Web UI (index.html, js/, css/): all panels, demo mode, recording/export, display filter, error handling, browser flashing (flows A/B/C, js/romflash.js + js/flasher.js), FPV viewer for hx-esp32-cam-fpv (docs/12, FPV tab; demo air unit on channel 7); tests `make js-test` (node) + headless Chromium checks.
+- Release 0.1.0 bundled in fw/ (`make release VERSION=X.Y.Z`; reproducible: `make bundle-check`). ctpbench embeds it as the expected firmware.
+- Not yet: ctpbench `fuzz`, `soak`, `inject`; darwin/windows serial; release.yml (tagging), GitHub repo.
+- Gates without hardware: `make lint host-test fuzz-short diff-test go-test js-test fw-host-conf fw fw-smoke` (= `make ci`).
+- Web UI: errors always go through js/errors.js `describe()` (title + explanation + actions) and are shown inline or as a banner and logged; never `alert()`. Test UI changes against demo mode first.
+- Licence: Apache-2.0, Copyright 2026 Henri Koskela (docs/08 D2). Firmware third-party notices: THIRD_PARTY_NOTICES.md + THIRD_PARTY_LICENSES.txt (regenerate with tools/third_party_licenses.sh when the IDF pin changes). Go module path is `github.com/hjkoskel/capturetonkeli`.
+- Stopping helper processes: use `pkill -x ctp_fw_host` (never `pgrep -f`/`pkill -f` with a pattern that also matches your own shell).

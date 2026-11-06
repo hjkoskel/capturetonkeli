@@ -1,0 +1,11 @@
+{
+  "name": "capturetonkeli",
+  "short_name": "ctk",
+  "description": "Wi-Fi monitor-mode capture with an ESP32-C5 USB dongle (receive-only).",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#1f6feb",
+  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

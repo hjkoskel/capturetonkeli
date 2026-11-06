@@ -21,7 +21,18 @@ CONFIG_ESP_BROWNOUT_DET=y
 # Build
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 CONFIG_APP_REPRODUCIBLE_BUILD=y
-CONFIG_APP_BUILD_MINIMIZE_BINARY_CHANGES=n
 
 # PSRAM not needed
 CONFIG_SPIRAM=n
+
+# 1 kHz tick: link task polls USB with 1 ms timeouts (docs/07 §3)
+CONFIG_FREERTOS_HZ=1000
+
+# A hung link/ctrl task must reboot the dongle (console is off, so a log-only
+# watchdog is invisible). Reset reason WATCHDOG feeds the crash-loop guard.
+CONFIG_ESP_TASK_WDT_PANIC=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=3
+CONFIG_ESP_SYSTEM_PANIC_SILENT_REBOOT=y
+
+# XIAO ESP32-C5: 8 MB external flash (esptool flash-id, M3)
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y

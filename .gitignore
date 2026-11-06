@@ -23,3 +23,9 @@ local.mk
 .vscode/
 .idea/
 .DS_Store
+firmware/host/build*/
+firmware/build-synth/
+firmware/build-diag/
+firmware/build-release/
+firmware/build-check/
+firmware/build-repro/

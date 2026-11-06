@@ -1,0 +1,342 @@
+[
+  {
+    "name": "HELLO",
+    "type": 1,
+    "dir": "req",
+    "fields": [
+      3735928559,
+      1
+    ],
+    "body_hex": "efbeadde01"
+  },
+  {
+    "name": "HELLO (+trailing)",
+    "type": 1,
+    "dir": "req",
+    "fields": [
+      3735928559,
+      1
+    ],
+    "body_hex": "efbeadde01aa55",
+    "longer_body": true
+  },
+  {
+    "name": "PING",
+    "type": 2,
+    "dir": "req",
+    "fields": [
+      123456
+    ],
+    "body_hex": "40e20100"
+  },
+  {
+    "name": "PING (+trailing)",
+    "type": 2,
+    "dir": "req",
+    "fields": [
+      123456
+    ],
+    "body_hex": "40e20100aa55",
+    "longer_body": true
+  },
+  {
+    "name": "SET_CHANNEL",
+    "type": 17,
+    "dir": "req",
+    "fields": [
+      149,
+      2
+    ],
+    "body_hex": "9502"
+  },
+  {
+    "name": "SET_CHANNEL (+trailing)",
+    "type": 17,
+    "dir": "req",
+    "fields": [
+      149,
+      2
+    ],
+    "body_hex": "9502aa55",
+    "longer_body": true
+  },
+  {
+    "name": "SET_COUNTRY",
+    "type": 18,
+    "dir": "req",
+    "fields": [
+      70,
+      73,
+      0,
+      1,
+      1,
+      13
+    ],
+    "body_hex": "46490001010d"
+  },
+  {
+    "name": "SET_COUNTRY (+trailing)",
+    "type": 18,
+    "dir": "req",
+    "fields": [
+      70,
+      73,
+      0,
+      1,
+      1,
+      13
+    ],
+    "body_hex": "46490001010daa55",
+    "longer_body": true
+  },
+  {
+    "name": "SET_SNAPLEN",
+    "type": 20,
+    "dir": "req",
+    "fields": [
+      1500
+    ],
+    "body_hex": "dc05"
+  },
+  {
+    "name": "SET_SNAPLEN (+trailing)",
+    "type": 20,
+    "dir": "req",
+    "fields": [
+      1500
+    ],
+    "body_hex": "dc05aa55",
+    "longer_body": true
+  },
+  {
+    "name": "SET_DRIVER_MASK",
+    "type": 21,
+    "dir": "req",
+    "fields": [
+      7,
+      4286578688
+    ],
+    "body_hex": "07000000000080ff"
+  },
+  {
+    "name": "SET_DRIVER_MASK (+trailing)",
+    "type": 21,
+    "dir": "req",
+    "fields": [
+      7,
+      4286578688
+    ],
+    "body_hex": "07000000000080ffaa55",
+    "longer_body": true
+  },
+  {
+    "name": "CAPTURE",
+    "type": 32,
+    "dir": "req",
+    "fields": [
+      1
+    ],
+    "body_hex": "01"
+  },
+  {
+    "name": "CAPTURE (+trailing)",
+    "type": 32,
+    "dir": "req",
+    "fields": [
+      1
+    ],
+    "body_hex": "01aa55",
+    "longer_body": true
+  },
+  {
+    "name": "GET_STATS",
+    "type": 33,
+    "dir": "req",
+    "fields": [
+      1
+    ],
+    "body_hex": "01"
+  },
+  {
+    "name": "GET_STATS (+trailing)",
+    "type": 33,
+    "dir": "req",
+    "fields": [
+      1
+    ],
+    "body_hex": "01aa55",
+    "longer_body": true
+  },
+  {
+    "name": "REBOOT",
+    "type": 48,
+    "dir": "req",
+    "fields": [
+      1
+    ],
+    "body_hex": "01"
+  },
+  {
+    "name": "REBOOT (+trailing)",
+    "type": 48,
+    "dir": "req",
+    "fields": [
+      1
+    ],
+    "body_hex": "01aa55",
+    "longer_body": true
+  },
+  {
+    "name": "RSP_OK DeviceInfo",
+    "type": 129,
+    "dir": "rsp",
+    "fields": [
+      1,
+      16973826,
+      5,
+      119,
+      176,
+      228,
+      18,
+      168,
+      195,
+      217,
+      1,
+      2,
+      197,
+      17,
+      34,
+      51,
+      68,
+      7,
+      4128,
+      16,
+      72623859790382856,
+      3405691582,
+      6,
+      1
+    ],
+    "body_hex": "01020003010577b0e412a8c3d90102c51122334407000000201010000807060504030201bebafeca0601"
+  },
+  {
+    "name": "RSP_OK Pong",
+    "type": 129,
+    "dir": "rsp",
+    "fields": [
+      99,
+      1234567
+    ],
+    "body_hex": "6300000087d6120000000000"
+  },
+  {
+    "name": "RSP_OK Config",
+    "type": 129,
+    "dir": "rsp",
+    "fields": [
+      9,
+      44,
+      1,
+      1,
+      70,
+      73,
+      0,
+      0,
+      1,
+      13,
+      256,
+      4294967295,
+      4286578688,
+      1,
+      3,
+      439041101
+    ],
+    "body_hex": "092c010146490000010d0001ffffffff000080ff01034d3c2b1a"
+  },
+  {
+    "name": "RSP_OK boot Config",
+    "type": 129,
+    "dir": "rsp",
+    "fields": [
+      0,
+      1,
+      0,
+      0,
+      48,
+      49,
+      0,
+      0,
+      1,
+      11,
+      0,
+      4294967295,
+      4286578688,
+      0,
+      0,
+      1696784233
+    ],
+    "body_hex": "0001000030310000010b0000ffffffff000080ff000069df2265"
+  },
+  {
+    "name": "EVT_STATS",
+    "type": 144,
+    "dir": "rsp",
+    "fields": [
+      5000000,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      42,
+      6,
+      -95,
+      0
+    ],
+    "body_hex": "404b4c000000000001000000020000000300000004000000050000000600000007000000080000002a0006a100000000"
+  },
+  {
+    "name": "RSP_ERR",
+    "type": 130,
+    "dir": "rsp",
+    "fields": [
+      4,
+      12290
+    ],
+    "body_hex": "040002300000146e6f7420696e20636f756e747279207461626c65",
+    "note": "detail \"not in country table\""
+  },
+  {
+    "name": "EVT_RESET",
+    "type": 146,
+    "dir": "rsp",
+    "fields": [
+      6,
+      16973826,
+      1
+    ],
+    "body_hex": "0602000301010b70726f746f2e633a313233",
+    "note": "detail \"proto.c:123\""
+  },
+  {
+    "name": "PKT",
+    "type": 160,
+    "dir": "rsp",
+    "fields": [
+      4328719365,
+      36,
+      6,
+      -61,
+      -96,
+      7,
+      2,
+      1500,
+      4,
+      65535
+    ],
+    "body_hex": "05040302010000002406c3a00702dc050400ffff88022c00",
+    "note": "data 88 02 2c 00"
+  }
+]
