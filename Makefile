@@ -17,7 +17,7 @@ CC_HOST    ?= cc
 
 CORE_SRC   := firmware/components/ctp_core
 
-.PHONY: bundle-check fw-check-build fw-release-build serve-https js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
+.PHONY: bundle-check fw-legal-check fw-check-build fw-release-build serve-https js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
         hil ci lint go-test vectors ctpbench release serve doctor clean
 
 help:
@@ -104,7 +104,7 @@ CPPCHECK_FLAGS := --enable=all --inline-suppr --std=c11 --check-level=exhaustive
   -I $(CORE_SRC)/include -I $(CORE_SRC)/src --suppress=missingIncludeSystem --suppress=checkersReport \
   --suppress=unusedFunction --suppress=staticFunction
 
-lint:
+lint: fw-legal-check
 	@echo "lint: layering"; \
 	! grep -rnE '#include *[<"](esp_|freertos/|driver/)' $(CORE_SRC) || { echo "IDF include in ctp_core" >&2; exit 1; }; \
 	! grep -rnE '\b(malloc|calloc|realloc|free)\s*\(' $(CORE_SRC) || { echo "heap use in ctp_core" >&2; exit 1; }; \
@@ -214,14 +214,17 @@ release: host-test go-test js-test
 # Regenerate THIRD_PARTY_LICENSES.txt with tools/third_party_licenses.sh when the IDF pin changes.
 FW_LEGAL = LICENSE NOTICE THIRD_PARTY_NOTICES.md THIRD_PARTY_LICENSES.txt
 
+# Licence copies in fw/ must equal the repo root (make release copies them; no firmware build needed).
+fw-legal-check:
+	@for f in $(FW_LEGAL); do cmp -s $$f fw/$$f || { echo "fw-legal-check: fw/$$f differs from $$f (sync with: cp $$f fw/)" >&2; exit 1; }; done
+
 # docs/11 §4 bundle-check: rebuild the release from source, compare with fw/ byte-for-byte.
 BUNDLE_VERSION = $(shell python3 -c "import json;print(json.load(open('fw/manifest.json'))['version'])" 2>/dev/null)
-bundle-check:
+bundle-check: fw-legal-check
 	@test -n "$(BUNDLE_VERSION)" || { echo "no fw/manifest.json" >&2; exit 1; }
 	rm -rf firmware/build-check
 	CTK_RELEASE_VERSION=$(BUNDLE_VERSION) $(MAKE) --no-print-directory fw-check-build
 	@python3 -c "import json,sys,filecmp;m=json.load(open('fw/manifest.json'));src={'bootloader':'bootloader/bootloader.bin','partition-table':'partition_table/partition-table.bin','app':'ctk.bin'};bad=[p['file'] for p in m['parts'] if not filecmp.cmp('fw/'+p['file'],'firmware/build-check/'+src[p['name']],shallow=False)];print('bundle-check: fw/ matches a rebuild of $(BUNDLE_VERSION)' if not bad else 'bundle-check: DIFFERS: '+', '.join(bad));sys.exit(1 if bad else 0)"
-	@for f in $(FW_LEGAL); do cmp -s $$f fw/$$f || { echo "bundle-check: fw/$$f differs from $$f (make release copies it)" >&2; exit 1; }; done
 
 fw-check-build:
 	$(call idf_build,-B build-check -D SDKCONFIG=build-check/sdkconfig build,firmware)
