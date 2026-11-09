@@ -574,9 +574,9 @@ func genCountries() {
 
 func genPcapng() {
 	type tc struct {
-		Name    string       `json:"name"`
-		Meta    wire.PktMeta `json:"meta"`
-		Data    string       `json:"data_hex"`
+		Name    string           `json:"name"`
+		Meta    wire.PktMeta     `json:"meta"`
+		Data    string           `json:"data_hex"`
 		Comment string           `json:"comment,omitempty"`
 		Ants    []pcapng.Antenna `json:"antennas,omitempty"`
 		EPB     string           `json:"epb_hex"`

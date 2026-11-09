@@ -1,6 +1,6 @@
 # 13 – OpenHD air protocol: passive receiver specification (2026-11-06)
 
-Status: web UI receiver implemented 2026-11-06 (§13). Not yet: firmware "OpenHD assist" (§10.3), Go library (§10.5), hardware test.
+Status: web UI receiver implemented 2026-11-06 (§13); Go library 2026-11-09 (`ctp/openhd`, `ctp/video`, `ctp/mavlink`, doc 05 §11). Not yet: firmware "OpenHD assist" (§10.3), a CLI with UDP forwarding (§10.5), hardware test.
 
 Goal: the capturetonkeli dongle (plus the browser / Go host) **passively** receives an OpenHD drone's downlink: video, telemetry and link metadata.
 It works like an OpenHD ground station in "listen-only" mode and never transmits.
@@ -483,6 +483,7 @@ Without the key: a scan mode that dwells ~1.2 s per channel (one session packet 
 - **Go (doc 05).**
   - ⚠️ The Go module is stdlib-only (CLAUDE.md), so `golang.org/x/crypto` is not available: port the hand-written primitives of js/ohdcrypto.js and js/ohdkeys.js (stdlib has `crypto/sha512`; ChaCha20/Poly1305/Salsa20/X25519/Argon2 must be written) and test them on the same fixtures. Remember the AEAD caveat in §4.6.
   - Provide `openhd.Receiver` with outputs: RTP packets (and an optional UDP 5600 forward so QOpenHD can be the display), MAVLink frames, link stats.
+  - *Done (doc 05 §11):* `ctp/openhd` (primitives, keys incl. Argon2id, receiver, sender), `ctp/video` (RTP, MP4), `ctp/mavlink`; tested on the §11 fixtures. The UDP forward is left to a CLI.
 - **Test bench (doc 06):** the golden vectors (§11) become unit tests for firmware level 1, the JS decoder and the Go decoder.
 
 ---
@@ -579,7 +580,6 @@ js/ohddemo.js: on channel 149 the demo dongle hears an OpenHD air unit (default 
 - Firmware "OpenHD assist" level 1 (§10.3) and the USB throughput target (§10.2, R1): needs spike C2 and a real air unit.
 - Hardware test against a real OpenHD air unit (R2), intra-refresh streams (R6), LDPC/STBC.
 - Scanning the race band without the key (§10.4), audio (R7), MAVLink forwarding (UDP is not possible from a browser; the Go library would provide UDP 5600/14550, §10.5).
-- Go library `openhd.Receiver` (§10.5, stdlib-only port).
 
 ---
 

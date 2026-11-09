@@ -1,6 +1,6 @@
 # 14 – Multi-dongle receive diversity – spec draft v2 (2026-11-06)
 
-> **Status (2026-11-09):** browser host side implemented for the firmware as it is (no protocol change): group of up to 4 dongles all forwarding everything, dedup with first copy wins, clock alignment, bad copies, per-antenna radiotap, per-dongle statistics, member loss and rejoin, demo with several dongles. See §9. Not yet: PKT trailer, SET_SHARD and spill (firmware + docs/03 + Go reference first, CLAUDE.md order of work), combining broken frames (needs the FCS, see §9.1), Go `OpenGroup`.
+> **Status (2026-11-09):** browser host side implemented for the firmware as it is (no protocol change): group of up to 4 dongles all forwarding everything, dedup with first copy wins, clock alignment, bad copies, per-antenna radiotap, per-dongle statistics, member loss and rejoin, demo with several dongles. See §9. Go library: `ctp.Group` / `ctp/diversity`, same algorithm (doc 05 §11.1, 2026-11-09). Not yet: PKT trailer, SET_SHARD and spill (firmware + docs/03 + Go reference first, CLAUDE.md order of work), combining broken frames (needs the FCS, see §9.1).
 
 Scope: using 2–3 capturetonkeli dongles at the same time on one host (browser or Go). The dongles can have different antennas (omni, patch, different polarisation) and are treated as **one logical capture device**.
 
@@ -340,5 +340,5 @@ First copy wins delivers another dongle's copy of a lost packet a few ms later, 
 
 ### 9.5 Next
 1. Firmware phase 1 per §9.1 (trailer flag bit7, `hw_ts`; hash for sharding), docs/03 bump, Go reference + vectors.
-2. Go library `OpenGroup` (§4.9) with the same algorithm (port js/diversity.js; stdlib only).
+2. ~~Go library `OpenGroup`~~ done: `ctp.OpenGroup` (doc 05 §11.1). A CLI capture over a group (pcapng with per-antenna RSSI) is the next step for the hardware test.
 3. Hardware: 2–3 XIAO C5 on separate root ports; measure the USB delivery skew between dongles (sets the rough tolerance and the OpenHD hold) and `ts_us` jitter (fine lock threshold).
