@@ -7,12 +7,16 @@ other machines need --https (self-signed certificate, accept the warning once).
 """
 import argparse
 import functools
+import json
 import http.server
 import os
 import socket
 import ssl
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import version_info  # noqa: E402
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 CERT_DIR = os.path.join(ROOT, "bench-out", "serve-cert")  # bench-out/ is git-ignored
@@ -54,6 +58,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header("Cache-Control", "no-cache")  # always the latest files while developing
         super().end_headers()
+
+    def do_GET(self):
+        # version.json: generated live from git (on Pages the deploy workflow writes it), docs/04 §19
+        if self.path.split("?")[0] in ("/version.json", "/capturetonkeli/version.json"):
+            body = json.dumps(version_info.info("dev-server")).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        super().do_GET()
 
 
 def main():

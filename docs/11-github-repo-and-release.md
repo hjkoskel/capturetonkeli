@@ -52,7 +52,7 @@ This doc is normative for repo layout, hosting and release. It supersedes the la
 - HTTPS is provided by Pages, which satisfies the secure-context requirement for Web Serial / WebUSB.
 - Pages can't set custom HTTP headers. Nothing in doc 04 needs them (no COOP/COEP, since we don't use SharedArrayBuffer). Any future feature that needs headers is out of scope.
 - `.nojekyll` must exist. Otherwise Jekyll processing skips files and folders starting with `_` and slows deploys.
-- Pages deploys automatically on every push to `main`. **`main` is therefore always the live release** (§4).
+- Pages deploys on every push to `main` with `.github/workflows/pages.yml` (repo Settings → Pages → Source: **GitHub Actions**): the repo root as it is plus a generated `version.json` (git describe/tag/branch/commit, doc 04 §19). **`main` is therefore always the live release** (§4). `version.json` is in .gitignore; never commit it.
 
 ## 3. "Always latest" in the browser: Service Worker update policy
 

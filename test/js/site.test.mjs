@@ -46,3 +46,23 @@ test('PWA manifest: installable icons, screenshots, shortcuts (docs/04 §18)', (
   assert.ok(html.includes('<link rel="manifest" href="manifest.webmanifest">'));
   png(html.match(/rel="apple-touch-icon" href="([^"]+)"/)[1]);
 });
+
+test('version information: tools/version_info.py, Pages workflow, start page (docs/04 §19)', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync('python3', ['tools/version_info.py', '--source', 'pages'], { cwd: new URL('.', root).pathname, encoding: 'utf8' });
+  if (!r.error) {
+    const v = JSON.parse(r.stdout);
+    assert.equal(v.source, 'pages');
+    if (!v.error) {
+      assert.match(v.commit, /^[0-9a-f]{40}$/);
+      assert.equal(v.short, v.commit.slice(0, 7));
+      assert.equal(v.dirty, false, 'a Pages build never says dirty');
+      assert.ok(v.describe && !v.describe.endsWith('-dirty'));
+    }
+  }
+  const wf = read('.github/workflows/pages.yml');
+  assert.match(wf, /version_info\.py --source pages > version\.json/);
+  assert.match(wf, /fetch-depth: 0/, 'tags are needed for git describe');
+  assert.ok(read('index.html').includes('id="version"'));
+  assert.ok(read('.gitignore').split('\n').includes('version.json'), 'version.json is generated, never committed');
+});
