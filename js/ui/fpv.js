@@ -7,6 +7,7 @@ import { crc32 } from '../codec.js';
 import { captureFilter, RESOLUTIONS, RATES } from '../hxfpv.js';
 import { h, inline, toast, download, fmtNum, fmtBytes, messageEl } from './dom.js';
 import { initOpenhd } from './openhd.js';
+import { flipControl, flippedCanvas } from './flip.js';
 
 const hex4 = (n) => `0x${n.toString(16).toUpperCase().padStart(4, '0')}`;
 const pct = (a, b) => (b ? `${((100 * a) / b).toFixed(1)} %` : '–');
@@ -44,6 +45,7 @@ export function initFpv(root, { isVisible }) {
   const canvas = h('canvas', { width: 640, height: 480, 'aria-label': 'FPV video' });
   const osdTxt = h('div.fpv-osd', 'No video');
   const video = h('div.fpv-video', canvas, osdTxt);
+  const flip = flipControl(canvas, 'fpvFlip');
   const slot = h('div', video);
   const stage = h('section.fpv-stage', { 'aria-label': 'FPV video (large)' });
   const largeBtn = h('button.small.fpv-large-btn', { onclick: () => setLarge(!large) }, 'Large view');
@@ -59,7 +61,7 @@ export function initFpv(root, { isVisible }) {
     filterState, setupMsg,
     h('h3', 'Video'),
     slot,
-    h('div.row', largeBtn, h('button.small', { onclick: fullscreen }, 'Fullscreen'), h('button.small', { onclick: snapshot }, 'Save JPEG'), pauseBtn,
+    h('div.row', largeBtn, h('button.small', { onclick: fullscreen }, 'Fullscreen'), h('button.small', { onclick: snapshot }, 'Save JPEG'), pauseBtn, flip.el,
       h('button.small', { onclick: () => { app.post({ t: 'fpv-reset' }); last = null; draw(null); toast('FPV decoder reset'); } }, 'Reset decoder')),
     hints,
     h('h3', 'Air units'), unitsBox,
@@ -176,7 +178,10 @@ export function initFpv(root, { isVisible }) {
   function snapshot() {
     if (!lastJpeg) { toast('No frame yet'); return; }
     const d = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    download(`fpv_${hex4(lastJpeg.unit)}_${d}_f${lastJpeg.info.index}.jpg`, lastJpeg.blob);
+    const name = `fpv_${hex4(lastJpeg.unit)}_${d}_f${lastJpeg.info.index}.jpg`;
+    if (flip.value() === 'none') { download(name, lastJpeg.blob); return; } // the camera's own JPEG, untouched
+    // flipped like the screen: re-encoded from the canvas (shows the last drawn frame)
+    flippedCanvas(canvas, flip.value()).toBlob((b) => b && download(name, b), 'image/jpeg', 0.95);
   }
 
   // ---- stats ----

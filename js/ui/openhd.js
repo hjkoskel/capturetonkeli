@@ -10,6 +10,7 @@ import { captureFilter, isOhdFilter, DEFAULT_KEYS, RACE_BAND_MHZ, DEFAULT_FREQ, 
 import { keysFromKeyFile } from '../ohdkeys.js';
 import { BW, channelFreq } from '../wire.js';
 import { COUNTRIES } from '../regdom.js';
+import { flipControl, flippedCanvas } from './flip.js';
 import { h, inline, toast, download, fmtNum, fmtBytes, messageEl } from './dom.js';
 
 const deg = (r) => (r * 180) / Math.PI;
@@ -27,9 +28,6 @@ function channelFor(mhz) {
   const ch = band.reduce((a, c) => (Math.abs(channelFreq(c) - mhz) < Math.abs(channelFreq(a) - mhz) ? c : a));
   return { ch, exact: channelFreq(ch) === mhz };
 }
-// Picture flip for cameras mounted upside down: a CSS transform on the canvas, done by the
-// compositor (GPU) at display time – no per-frame pixel work, no extra latency.
-const FLIPS = { none: 'none', rot180: 'upside down (rotate 180°)', mirror: 'mirror (left ↔ right)', vflip: 'flip vertically' };
 
 export function initOpenhd(root, { isVisible, onLargeChange }) {
   const s = settings.get();
@@ -92,11 +90,7 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
   const largeBtn = h('button.small.fpv-large-btn', { onclick: () => setLarge(!large) }, 'Large view');
   const pauseBtn = h('button.small', { onclick: togglePause }, 'Pause');
   const camSel = h('select.small', { 'aria-label': 'Camera', onchange: () => { cam = Number(camSel.value); resetDecoder(); sendView(); } }, h('option', { value: 0 }, 'primary camera'), h('option', { value: 1 }, 'secondary camera'));
-  const flipSel = h('select.small', { 'aria-label': 'Flip picture', title: 'For a camera mounted upside down. Display only: recordings keep the original picture.', onchange: () => { settings.update((x) => { x.ohdFlip = flipSel.value; }); applyFlip(); } },
-    Object.entries(FLIPS).map(([v, t]) => h('option', { value: v }, v === 'none' ? 'no flip' : t)));
-  flipSel.value = FLIPS[s.ohdFlip] ? s.ohdFlip : 'none';
-  function applyFlip() { for (const v of Object.keys(FLIPS)) canvas.classList.toggle(`flip-${v}`, flipSel.value === v && v !== 'none'); }
-  applyFlip();
+  const flip = flipControl(canvas, 'ohdFlip');
   const recVideoBtn = h('button.small', { onclick: () => toggleRec('video') }, 'Record video');
   const recTlogBtn = h('button.small', { onclick: () => toggleRec('tlog') }, 'Record telemetry (.tlog)');
   const recState = h('span.small.muted');
@@ -120,7 +114,7 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
       h('div.row.small', 'Codec ', codecSel)),
     h('h3', 'Video'),
     slot,
-    h('div.row', largeBtn, h('button.small', { onclick: fullscreen }, 'Fullscreen'), h('button.small', { onclick: snapshot }, 'Snapshot'), pauseBtn, camSel, flipSel,
+    h('div.row', largeBtn, h('button.small', { onclick: fullscreen }, 'Fullscreen'), h('button.small', { onclick: snapshot }, 'Snapshot'), pauseBtn, camSel, flip.el,
       h('button.small', { onclick: () => { app.post({ t: 'ohd-reset' }); resetDecoder(); toast('OpenHD receiver reset'); } }, 'Reset')),
     h('div.row', recVideoBtn, recTlogBtn, recState),
     hints,
@@ -272,14 +266,7 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
   }
   function snapshot() {
     if (!frames) { toast('No frame yet'); return; }
-    let src = canvas;
-    if (flipSel.value !== 'none') { // the snapshot shows what is on screen
-      src = document.createElement('canvas'); src.width = canvas.width; src.height = canvas.height;
-      const c = src.getContext('2d'), f = flipSel.value;
-      c.setTransform(f === 'vflip' ? 1 : -1, 0, 0, f === 'mirror' ? 1 : -1, f === 'vflip' ? 0 : canvas.width, f === 'mirror' ? 0 : canvas.height);
-      c.drawImage(canvas, 0, 0);
-    }
-    src.toBlob((b) => b && download(`openhd_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`, b), 'image/png');
+    flippedCanvas(canvas, flip.value()).toBlob((b) => b && download(`openhd_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`, b), 'image/png');
   }
 
   // ---------------- WebCodecs decoding ----------------
