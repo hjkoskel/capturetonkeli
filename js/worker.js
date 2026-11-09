@@ -11,10 +11,51 @@ import * as OHD from './openhd.js';
 import { Depacketizer } from './rtp.js';
 import * as MAV from './mavlink.js';
 import { mp4Files } from './mp4.js';
+import { Merger, HOLD_MS } from './diversity.js';
 
-let dec = new Decoder();
-let lastSeq = -1;
 const host = { frames: 0, bytesIn: 0, linkLost: 0, deviceGaps: 0, unknownTypes: 0, badPkt: 0, overruns: 0, parseMs: 0 };
+
+// ---- dongles (docs/14): one parse state per member; member 0 = the single-dongle case ------------
+const mems = new Map(); // id → { dec, lastSeq, lastGen, lastRxSeq, label, mac, st }
+function mem(id) {
+  let x = mems.get(id);
+  if (!x) {
+    x = { id, dec: new Decoder(), lastSeq: -1, lastGen: -1, lastRxSeq: -1, label: `Dongle ${id + 1}`, mac: '', st: { frames: 0, bytes: 0, pkts: 0, linkLost: 0, deviceGaps: 0, badPkt: 0, overruns: 0 } };
+    mems.set(id, x);
+  }
+  return x;
+}
+mem(0);
+// OpenHD FEC with several dongles: another dongle's copy of a lost packet can arrive after newer
+// blocks (USB delivery skew between dongles), so incomplete blocks are held up to HOLD_MS then.
+let ohdOpts = {};
+function applyOhdOpts() { ohd.setOptions({ ...ohdOpts, holdMs: merger ? HOLD_MS : 0 }); }
+// With 2+ dongles the merger dedups their streams (first copy wins, at once); with one it is not used,
+// so a single dongle behaves exactly as before.
+let merger = null, dueTimer = 0;
+function onFinal(e) { if (rec && e.abs !== null && e.abs >= oldest) recordPacket(e.abs); }
+function setMembers(list) {
+  for (const x of list) Object.assign(mem(x.id), { label: x.label, mac: x.mac });
+  const before = merger ? merger.size : 1;
+  if (list.length >= 2) {
+    merger ??= new Merger({ onFinal });
+    merger.setMembers(list.map((x) => ({ id: x.id, mac: x.mac })));
+  } else if (merger) { drainMerger(true); merger = null; }
+  applyOhdOpts();
+  if (list.length !== before) addMark(list.length >= 2 ? `Diversity: ${list.length} dongles (${list.map((x) => x.label).join(', ')})` : 'Diversity off: one dongle', 'cfg');
+}
+function drainMerger(all) {
+  if (!merger) return;
+  if (all) merger.flush();
+  for (const b of merger.due(all ? Infinity : performance.now())) storeBad(b);
+  clearTimeout(dueTimer); dueTimer = 0;
+  if (merger.held.length) dueTimer = setTimeout(() => { dueTimer = 0; drainMerger(false); }, HOLD_MS + 1);
+}
+// a bad copy no other dongle delivered cleanly: emitted as it is, after the hold
+function storeBad(b) {
+  const abs = store({ cfgGen: mem(b.id).lastGen }, { ...b.meta, tsUs: Math.round(b.g) }, b.data, b.id);
+  if (rec) recordPacket(abs);
+}
 
 // ---- packet store ----------------------------------------------------------------------
 let N = 200000, BYTES = 64 << 20;
@@ -26,6 +67,7 @@ function alloc(n) {
     ts: new Float64Array(N), hostMs: new Float64Array(N), off: new Uint32Array(N), origLen: new Uint16Array(N), capLen: new Uint16Array(N),
     rxSeq: new Uint16Array(N), ch: new Uint8Array(N), flags: new Uint8Array(N), rssi: new Int8Array(N), noise: new Int8Array(N),
     rate: new Uint8Array(N), bb: new Uint8Array(N), gen: new Uint8Array(N),
+    m0: new Uint8Array(N), rx: new Uint8Array(N), rssiM: new Int8Array(N * 8), // diversity: first dongle, dongles that heard it, RSSI each
   };
   bytes = new Uint8Array(BYTES);
   wp = 0; oldest = 0; next = 0;
@@ -39,7 +81,7 @@ let order = [], orderHead = 0; // visible items: abs index (≥0) or ~markerKey 
 let markerKeys = [];       // ~k → {before, text}
 let filterFn = null;
 let firstTs = null;
-let lastGen = -1, lastRxSeq = -1, captureEpoch = 0;
+let captureEpoch = 0;
 const cfgNotes = new Map();
 
 alloc(N);
@@ -160,7 +202,7 @@ function ohdRecStop() {
 
 function addMark(text, kind = 'info') { pendingMarks.push({ text, kind }); }
 
-function store(h, meta, data) {
+function store(h, meta, data, m = 0) {
   const n = data.length;
   if (wp + n > BYTES) wp = 0;
   // evict packets whose bytes we overwrite, and slots we reuse
@@ -169,6 +211,7 @@ function store(h, meta, data) {
   col.ts[i] = meta.tsUs; col.hostMs[i] = Date.now(); col.off[i] = wp; col.origLen[i] = meta.origLen; col.capLen[i] = n;
   col.rxSeq[i] = meta.rxSeq; col.ch[i] = meta.channel; col.flags[i] = meta.flags; col.rssi[i] = meta.rssi; col.noise[i] = meta.noise;
   col.rate[i] = meta.rate; col.bb[i] = meta.bbFormat; col.gen[i] = h.cfgGen;
+  col.m0[i] = m; col.rx[i] = 1 << m; col.rssiM[i * 8 + m] = meta.rssi;
   bytes.set(data, wp);
   wp += n;
   const abs = next++;
@@ -179,7 +222,7 @@ function store(h, meta, data) {
     pendingMarks = [];
   }
   if (!filterFn || safeMatch(abs)) order.push(abs);
-  if (rec) recordPacket(abs);
+  if (rec && !merger) recordPacket(abs); // with a merger: when the frame's copy window closes (all RSSIs known)
   return abs;
 }
 
@@ -207,40 +250,65 @@ function packetAt(abs) {
   };
 }
 
+function copiesAt(abs) {
+  const i = abs % N, out = [];
+  for (let m = 0; m < 8; m++) if (col.rx[i] & (1 << m)) out.push({ id: m, rssi: col.rssiM[i * 8 + m], first: m === col.m0[i] });
+  return out;
+}
+
 function safeMatch(abs) {
   try { const p = packetAt(abs); return filterFn({ meta: p.meta, data: W.frameBytes(p.meta, p.data) }); } catch { return false; }
 }
 
 // ---- ingest ---------------------------------------------------------------------------
-function onFrame(h, body) {
-  host.frames++;
-  if (h.type === W.T.EVT_RESET) lastSeq = -1;
-  if (lastSeq >= 0) {
-    const gap = (h.seq - lastSeq - 1) & 0xffff;
-    if (gap) { host.linkLost += gap; addMark(`${gap} frame${gap > 1 ? 's' : ''} lost on the USB link (host side)`, 'gap'); }
+function onFrame(x, h, body) {
+  host.frames++; x.st.frames++;
+  // in a group a gap on one dongle is usually covered by the others: counted per dongle, not marked
+  const who = merger ? `${x.label}: ` : '';
+  if (h.type === W.T.EVT_RESET) x.lastSeq = -1;
+  if (x.lastSeq >= 0) {
+    const gap = (h.seq - x.lastSeq - 1) & 0xffff;
+    if (gap) { host.linkLost += gap; x.st.linkLost += gap; if (!merger) addMark(`${gap} frame${gap > 1 ? 's' : ''} lost on the USB link (host side)`, 'gap'); }
   }
-  lastSeq = h.seq;
+  x.lastSeq = h.seq;
   if (h.type === W.T.PKT) {
     let p;
-    try { p = W.decPkt(body); } catch { host.badPkt++; return; }
-    if (h.cfgGen !== lastGen) {
-      if (lastGen >= 0) addMark(cfgNotes.get(h.cfgGen) ?? `Config changed (cfg_gen ${h.cfgGen})`, 'cfg');
-      lastGen = h.cfgGen;
-      lastRxSeq = -1;
+    try { p = W.decPkt(body); } catch { host.badPkt++; x.st.badPkt++; return; }
+    x.st.pkts++;
+    if (h.cfgGen !== x.lastGen) {
+      if (x.lastGen >= 0 && (!merger || x.id === merger.ref)) addMark(cfgNotes.get(`${x.id}:${h.cfgGen}`) ?? `Config changed (cfg_gen ${h.cfgGen})`, 'cfg');
+      x.lastGen = h.cfgGen;
+      x.lastRxSeq = -1;
     }
-    if (lastRxSeq >= 0) {
-      const gap = (p.meta.rxSeq - lastRxSeq - 1) & 0xffff;
-      if (gap && gap < 0x8000) { host.deviceGaps += gap; addMark(`Gap: ${gap} frame${gap > 1 ? 's' : ''} dropped on the dongle (USB too slow → lower snaplen or filter more)`, 'gap'); }
+    if (x.lastRxSeq >= 0) {
+      const gap = (p.meta.rxSeq - x.lastRxSeq - 1) & 0xffff;
+      if (gap && gap < 0x8000) { host.deviceGaps += gap; x.st.deviceGaps += gap; if (!merger) addMark(`Gap: ${gap} frame${gap > 1 ? 's' : ''} dropped on the dongle (USB too slow → lower snaplen or filter more)`, 'gap'); }
     }
-    lastRxSeq = p.meta.rxSeq;
-    store(h, p.meta, p.data);
-    hxPush(p.meta, p.data);
-    ohdPush(p.meta, p.data);
+    x.lastRxSeq = p.meta.rxSeq;
+    if (!merger) {
+      store(h, p.meta, p.data, x.id);
+      hxPush(p.meta, p.data);
+      ohdPush(p.meta, p.data);
+      return;
+    }
+    if (!merger.members.has(x.id)) return; // not (yet / any more) in the group
+    const r = merger.offer(x.id, p.meta, p.data, performance.now());
+    if (r.dup === false) {
+      const abs = store(h, { ...p.meta, tsUs: Math.round(r.groupTs) }, p.data, x.id);
+      merger.bind(r.entry, abs);
+      hxPush(p.meta, p.data); // live consumers get the first copy at once
+      ohdPush(p.meta, p.data);
+    } else if (r.dup && r.entry.abs !== null && r.entry.abs >= oldest) {
+      const i = r.entry.abs % N;
+      col.rx[i] |= 1 << x.id;
+      col.rssiM[i * 8 + x.id] = p.meta.rssi;
+    }
+    drainMerger(false);
     return;
   }
-  if (h.type === W.T.EVT_RESET) { addMark('Dongle restarted', 'reset'); lastRxSeq = -1; }
+  if (h.type === W.T.EVT_RESET) { addMark(`${who}Dongle restarted`, 'reset'); x.lastRxSeq = -1; }
   // everything else goes to protocol.js on the main thread
-  self.postMessage({ t: 'frame', h, body }, [body.buffer]);
+  self.postMessage({ t: 'frame', m: x.id, h, body }, [body.buffer]);
 }
 
 // ---- view rows (only what the list needs) -----------------------------------------------
@@ -281,7 +349,8 @@ function detail(n) {
   const abs = n - 1;
   if (abs < oldest || abs >= next) return null;
   const p = packetAt(abs);
-  return { n, meta: p.meta, data: p.data.slice(), cfgGen: p.cfgGen, hostMs: p.hostMs, rel: (p.meta.tsUs - (firstTs ?? 0)) / 1e6 };
+  return { n, meta: p.meta, data: p.data.slice(), cfgGen: p.cfgGen, hostMs: p.hostMs, rel: (p.meta.tsUs - (firstTs ?? 0)) / 1e6,
+    copies: merger || col.rx[abs % N] !== 1 ? copiesAt(abs).map((c) => ({ ...c, label: mems.get(c.id)?.label ?? `Dongle ${c.id + 1}` })) : null };
 }
 
 function setFilter(expr) {
@@ -308,7 +377,8 @@ function recordPacket(abs) {
   if (rec.filtered && filterFn && !safeMatch(abs)) return;
   const ms = markers.get(abs);
   const comment = ms ? ms.map((m) => m.text).join('; ') : '';
-  const b = P.epb(p.meta, p.data, comment);
+  const ants = merger ? copiesAt(abs).map((c) => ({ ant: c.id, rssi: c.rssi })) : null;
+  const b = P.epb(p.meta, p.data, comment, ants);
   rec.chunks.push(b); rec.size += b.length; rec.packets++;
   if (rec.size >= 1 << 20) flushRec();
 }
@@ -328,7 +398,8 @@ function exportBuffer(opts, filtered) {
     if (filtered && filterFn && !safeMatch(a)) continue;
     const p = packetAt(a);
     const ms = markers.get(a);
-    const b = P.epb(p.meta, p.data, ms ? ms.map((m) => m.text).join('; ') : '');
+    const i = a % N, multi = col.rx[i] & (col.rx[i] - 1); // heard by 2+ dongles
+    const b = P.epb(p.meta, p.data, ms ? ms.map((m) => m.text).join('; ') : '', merger || multi ? copiesAt(a).map((c) => ({ ant: c.id, rssi: c.rssi })) : null);
     parts.push(b); size += b.length; count++;
   }
   const out = new Uint8Array(size);
@@ -337,14 +408,29 @@ function exportBuffer(opts, filtered) {
   return { buf: out, count };
 }
 
+// ---- diversity summary (docs/14 §5) ----------------------------------------------------------
+let prevMem = new Map();
+function groupSummary() {
+  const now = performance.now(), sum = merger?.summary() ?? null;
+  const list = [...mems.values()].filter((x) => x.mac || x.st.frames).map((x) => {
+    const p = prevMem.get(x.id) ?? { t: now, pkts: x.st.pkts, bytes: x.st.bytes }, dt = Math.max(0.001, (now - p.t) / 1000);
+    prevMem.set(x.id, { t: now, pkts: x.st.pkts, bytes: x.st.bytes });
+    const g = sum?.members.find((y) => y.id === x.id) ?? null;
+    return { id: x.id, label: x.label, mac: x.mac, ...x.st, pps: (x.st.pkts - p.pkts) / dt, bps: (x.st.bytes - p.bytes) / dt, merge: g };
+  });
+  return sum ? { active: true, ...sum, members: list } : { active: false, members: list };
+}
+
 // ---- message loop -------------------------------------------------------------------------
 let rateWin = { t: performance.now(), pkts: 0, bytes: 0 };
 setInterval(() => {
   const now = performance.now(), dt = (now - rateWin.t) / 1000;
-  const s = { ...host, decoder: { ...dec.stats }, stored: next - oldest, received: next, pps: (next - rateWin.pkts) / dt, bps: (host.bytesIn - rateWin.bytes) / dt,
+  const decoder = {};
+  for (const x of mems.values()) for (const [k, v] of Object.entries(x.dec.stats)) if (typeof v === 'number') decoder[k] = (decoder[k] ?? 0) + v;
+  const s = { ...host, decoder, stored: next - oldest, received: next, pps: (next - rateWin.pkts) / dt, bps: (host.bytesIn - rateWin.bytes) / dt,
     fill: (next - oldest) / N, recording: rec ? { packets: rec.packets } : null,
     fpv: hx.units.size || hx.wrongVersion ? { ...hx.summary(), shown: shownUnit(), skipped: fpvView.skipped } : null,
-    ohd: ohdSummary() };
+    ohd: ohdSummary(), group: groupSummary() };
   rateWin = { t: now, pkts: next, bytes: host.bytesIn };
   host.parseMs = 0;
   self.postMessage({ t: 'tick', s });
@@ -355,20 +441,27 @@ self.onmessage = (e) => {
   const m = e.data;
   switch (m.t) {
     case 'chunk': {
-      const t0 = performance.now();
-      host.bytesIn += m.buf.length;
-      dec.feed(m.buf, onFrame);
+      const t0 = performance.now(), x = mem(m.m ?? 0);
+      host.bytesIn += m.buf.length; x.st.bytes += m.buf.length;
+      x.dec.feed(m.buf, (h, body) => onFrame(x, h, body));
       host.parseMs += performance.now() - t0;
       break;
     }
-    case 'resync': dec.reset(); lastSeq = -1; if (m.overrun) host.overruns++; if (m.mark) addMark(m.mark, 'reset'); break;
+    case 'resync': {
+      const x = mem(m.m ?? 0);
+      x.dec.reset(); x.lastSeq = -1;
+      if (m.overrun) { host.overruns++; x.st.overruns++; }
+      if (m.mark) addMark(merger ? `${x.label}: ${m.mark}` : m.mark, 'reset');
+      break;
+    }
+    case 'members': setMembers(m.list); break;
     case 'mark': addMark(m.text, m.kind ?? 'info'); break;
-    case 'cfgnote': cfgNotes.set(m.gen, m.text); if (cfgNotes.size > 300) cfgNotes.delete(cfgNotes.keys().next().value); break;
-    case 'capture-start': captureEpoch++; lastRxSeq = -1; break;
+    case 'cfgnote': cfgNotes.set(`${m.m ?? 0}:${m.gen}`, m.text); if (cfgNotes.size > 300) cfgNotes.delete(cfgNotes.keys().next().value); break;
+    case 'capture-start': captureEpoch++; for (const x of mems.values()) x.lastRxSeq = -1; break;
     case 'view': self.postMessage({ t: 'view', id: m.id, ...view(m.start, m.count) }); break;
     case 'detail': self.postMessage({ t: 'detail', id: m.id, d: detail(m.n) }); break;
     case 'filter': self.postMessage({ t: 'filter', id: m.id, ...setFilter(m.expr) }); break;
-    case 'clear': alloc(N); firstTs = null; break;
+    case 'clear': merger?.flush(); alloc(N); firstTs = null; break;
     case 'fpv-view': fpvView.on = !!m.on; fpvView.unit = m.unit ?? 'auto'; break;
     case 'fpv-ack': fpvView.inFlight = Math.max(0, fpvView.inFlight - 1); break;
     case 'fpv-reset': hx.reset(); fpvView.inFlight = 0; fpvView.skipped = 0; break;
@@ -380,7 +473,7 @@ self.onmessage = (e) => {
     case 'ohd-ack': ohdView.inFlight = Math.max(0, ohdView.inFlight - 1); break;
     case 'ohd-need-key': ohdView.needKey = true; ohdView.waitSince = performance.now(); break;
     case 'ohd-keys': ohd.setKeys(m.keys); ohdFlight.clear(); ohdDepack.clear(); break;
-    case 'ohd-options': ohd.setOptions(m.opts); break;
+    case 'ohd-options': ohdOpts = m.opts; applyOhdOpts(); break;
     case 'ohd-reset': ohd.reset(); ohdFlight.clear(); ohdDepack.clear(); ohdView.needKey = true; ohdView.inFlight = 0; ohdView.sent = ohdView.skipped = ohdView.forced = 0; break;
     case 'ohd-rec-start': {
       const unit = ohdShownUnit();
@@ -388,9 +481,11 @@ self.onmessage = (e) => {
       break;
     }
     case 'ohd-rec-stop': ohdRecStop(); break;
-    case 'store-size': alloc(Math.max(10000, Math.min(2000000, m.n | 0))); firstTs = null; break;
+    case 'store-size': merger?.flush(); alloc(Math.max(10000, Math.min(2000000, m.n | 0))); firstTs = null; break;
     case 'rec-start': rec = { chunks: [P.header(m.opts)], size: 0, packets: 0, filtered: !!m.filtered }; rec.size = rec.chunks[0].length; break;
-    case 'rec-stop': flushRec(); self.postMessage({ t: 'rec-stopped', packets: rec?.packets ?? 0 }); rec = null; break;
+    case 'rec-stop':
+      if (rec && merger) for (let k = merger.qHead; k < merger.queue.length; k++) { const e = merger.queue[k]; if (e.abs !== null && e.abs >= oldest) recordPacket(e.abs); } // still open: record now
+      flushRec(); self.postMessage({ t: 'rec-stopped', packets: rec?.packets ?? 0 }); rec = null; break;
     case 'export': { const r = exportBuffer(m.opts, m.filtered); self.postMessage({ t: 'export', id: m.id, buf: r.buf, count: r.count }, [r.buf.buffer]); break; }
     default: break;
   }

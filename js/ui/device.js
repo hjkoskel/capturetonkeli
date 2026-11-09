@@ -6,12 +6,15 @@ import * as W from '../wire.js';
 import * as semver from '../semver.js';
 import { DemoTransport } from '../transport.js';
 import * as flasher from '../flasher.js';
+import { initGroup } from './group.js';
 
 export function initDevice(root) {
   const info = h('dl.kv'), cfg = h('dl.kv'), fw = h('div'), msg = h('div');
-  const faults = h('div');
+  const faults = h('div'), group = h('section');
+  initGroup(group);
   root.append(
-    h('h3', 'Dongle'), info,
+    group,
+    h('h3', 'Dongle'), h('p.small.muted.group-note.hidden', 'With several dongles this shows the primary one; the others follow its configuration.'), info,
     h('h3', 'Configuration (readback)'), cfg,
     h('div.row', h('button', { onclick: reread }, 'Re-read config'), h('button', { onclick: repush }, 'Re-push my config')),
     h('h3', 'Firmware'), fw,
@@ -65,7 +68,7 @@ export function initDevice(root) {
 
   async function reread() { inline(msg, await app.act('Re-read config', (c) => c.getConfig())); }
   async function repush() {
-    inline(msg, await app.act('Re-push config', async () => { await app.pushDesired(); }));
+    inline(msg, await app.actOne('Re-push config', () => app.repushAll()));
     if (!msg.firstChild) toast('Configuration re-sent');
   }
   async function reboot(mode) {
@@ -73,7 +76,7 @@ export function initDevice(root) {
       mode ? 'The dongle stops capturing and waits for a flasher (ctpbench fw flash, esptool --before no-reset). Unplug it to leave download mode.'
         : 'Capture stops briefly; the page reconnects and restores your configuration.', 'Reboot', true);
     if (!ok) return;
-    inline(msg, await app.act('Reboot', (c) => c.reboot(mode)));
+    inline(msg, await app.actOne('Reboot', (c) => c.reboot(mode)));
     if (mode) { await app.disconnect(true); toast('Dongle is in download mode'); }
   }
 

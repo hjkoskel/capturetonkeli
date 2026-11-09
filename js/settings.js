@@ -14,7 +14,7 @@ export function defaults() {
       typeMask: DEFAULT_TYPE_MASK, ctrlMask: DEFAULT_CTRL_MASK, filter: emptySet() },
     autoCapture: true, autoReconnect: true, transport: 'auto', storeSize: 200000, timeFormat: 'rel', theme: 'auto', colors: true, keepAwake: 'connected',
     recName: 'capture_{date}_ch{ch}.pcapng', recFiltered: false, pingInterval: 500, logLevel: 'info', showRaw: false,
-    savedFilters: {}, acceptedLegal: false, dontAskFw: {}, fpvChannel: 7, fpvKeep: 8, fpvPrevFilter: null, fpvSystem: 'hx', fpvFlip: 'none',
+    savedFilters: {}, acceptedLegal: false, dontAskFw: {}, fpvChannel: 7, fpvKeep: 8, fpvPrevFilter: null, fpvSystem: 'hx', fpvFlip: 'none', dongleLabels: {},
     ohdChannel: 149, ohdBw: 20, ohdFollow: true, ohdGround: false, ohdKeys: null, ohdUnverified: false, ohdQueue: 1, ohdGapped: false, ohdCodec: 'auto', ohdFlip: 'none', ohdRecFormat: 'mp4', ohdPrevFilter: null,
   };
 }

@@ -90,18 +90,24 @@ app.addEventListener('conn', (e) => {
   const st = e.detail;
   btnConnect.textContent = st === 'disconnected' ? 'Connect' : st === 'connected' ? 'Disconnect' : 'Cancel';
   btnConnect.classList.toggle('primary', st === 'disconnected');
-  $('#link-text').textContent = CONN_TEXT[st] + (st === 'connected' && app.transport?.kind === 'demo' ? ' (demo)' : '');
+  $('#link-text').textContent = CONN_TEXT[st] + (st === 'connected' && app.transport?.kind === 'demo' ? ' (demo)' : '') + groupText();
   $('#link-dot').className = `dot ${st === 'connected' ? 'green' : st === 'disconnected' ? 'grey' : 'yellow'}`;
   $('#btn-capture').disabled = st !== 'connected';
   $('#btn-record').disabled = st !== 'connected' && !app.recording;
   if (st === 'disconnected') $('#link-rtt').textContent = '';
   if (st !== 'disconnected') hideStart();
 });
+function groupText() { const n = app.members.length; return app.conn === 'connected' && n > 1 ? ` · ${n} dongles` : ''; }
+app.addEventListener('members', () => {
+  if (app.conn !== 'connected') return;
+  $('#link-text').textContent = CONN_TEXT.connected + (app.transport?.kind === 'demo' ? ' (demo)' : '') + groupText();
+  document.querySelector('.group-note')?.classList.toggle('hidden', app.members.length < 2);
+});
 app.addEventListener('link', (e) => {
   const map = { up: 'green', degraded: 'yellow', dead: 'red', down: 'grey' };
   if (app.conn === 'connected') {
     $('#link-dot').className = `dot ${map[e.detail]}`;
-    $('#link-text').textContent = e.detail === 'degraded' ? 'Connected – dongle slow to answer' : e.detail === 'dead' ? 'Link dead' : 'Connected';
+    $('#link-text').textContent = (e.detail === 'degraded' ? 'Connected – dongle slow to answer' : e.detail === 'dead' ? 'Link dead' : 'Connected') + groupText();
   }
 });
 let lastHostLost = 0, lastLossAt = -Infinity;

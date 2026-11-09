@@ -67,10 +67,12 @@ const u32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 
  * One FEC video stream (§5.4). Primaries are forwarded in order, only from the
  * oldest open block, as soon as they are available (no wait on a clean link).
  * Q = max open blocks (OpenHD ground default 1).
+ * holdMs > 0 (several dongles, docs/14): an incomplete block is only given up once it is that
+ * old, because another dongle's copy of its missing packet can arrive after newer blocks.
  */
 export class FecStream {
-  constructor({ out, queue = 1, forwardGapped = false }) {
-    this.out = out; this.Q = queue; this.forwardGapped = forwardGapped;
+  constructor({ out, queue = 1, forwardGapped = false, holdMs = 0, now = () => performance.now() }) {
+    this.out = out; this.Q = queue; this.forwardGapped = forwardGapped; this.holdMs = holdMs; this.now = now;
     this.reset();
     this.st = { fragments: 0, primaries: 0, secondaries: 0, secUnneeded: 0, duplicates: 0, late: 0, bad: 0, recovered: 0, blocksOk: 0, blocksFec: 0, blocksLost: 0, primariesLost: 0, restarts: 0 };
   }
@@ -89,7 +91,7 @@ export class FecStream {
       else { if (fi >= k) st.secUnneeded++; else st.late++; return; }
     }
     let b = this.blocks.get(blk);
-    if (!b) { b = { idx: blk, k, prim: new Map(), sec: new Map(), fwd: 0, fec: false }; this.blocks.set(blk, b); }
+    if (!b) { b = { idx: blk, k, prim: new Map(), sec: new Map(), fwd: 0, fec: false, t0: this.holdMs ? this.now() : 0 }; this.blocks.set(blk, b); }
     if (b.k !== k) { st.bad++; return; }
     const sym = body.subarray(6);
     if (fi < k) {
@@ -102,9 +104,17 @@ export class FecStream {
       b.sec.set(fi - k, sym);
     }
     if (b.prim.size < k && b.prim.size + b.sec.size >= k) this.recover(b);
-    if (b.prim.size === k) for (const o of [...this.blocks.values()].filter((x) => x.idx < b.idx).sort((x, y) => x.idx - y.idx)) this.giveUp(o); // a newer block is complete
+    if (b.prim.size === k) for (const o of [...this.blocks.values()].filter((x) => x.idx < b.idx).sort((x, y) => x.idx - y.idx)) if (this.ripe(o)) this.giveUp(o); // a newer block is complete
     this.drain();
-    while (this.blocks.size > this.Q) { this.giveUp(this.oldest()); this.drain(); }
+    this.trim();
+  }
+  ripe(b) { return !this.holdMs || this.now() - b.t0 >= this.holdMs; }
+  trim() {
+    while (this.blocks.size > this.Q) {
+      const o = this.oldest();
+      if (!this.ripe(o) && this.blocks.size <= 64) return;
+      this.giveUp(o); this.drain();
+    }
   }
   emit(b, j) {
     const s = b.prim.get(j);
@@ -167,7 +177,7 @@ export class Receiver {
   constructor({ keys = DEFAULT_KEYS, onRtp, onTelemetry, onMgmt, onSession, now = () => Date.now(), queue = 1, forwardGapped = false, unverified = false } = {}) {
     this.cb = { onRtp, onTelemetry, onMgmt, onSession };
     this.now = now;
-    this.opts = { queue, forwardGapped, unverified };
+    this.opts = { queue, forwardGapped, unverified, holdMs: 0 };
     this.setKeys(keys);
     this.reset();
   }
@@ -178,7 +188,7 @@ export class Receiver {
   }
   setOptions(o) {
     Object.assign(this.opts, o);
-    for (const u of this.units.values()) for (const s of u.fec.values()) { s.Q = this.opts.queue; s.forwardGapped = this.opts.forwardGapped; }
+    for (const u of this.units.values()) for (const s of u.fec.values()) { s.Q = this.opts.queue; s.forwardGapped = this.opts.forwardGapped; s.holdMs = this.opts.holdMs; }
   }
   reset() {
     this.units = new Map();
@@ -196,7 +206,7 @@ export class Receiver {
     this.units.set(u.id, u);
     return u;
   }
-  resetStreams(u) { u.fec.clear(); u.dedupe.clear(); u.gen = null; u.genMiss = 0; u.nonceLast = null; }
+  resetStreams(u) { u.fec.clear(); u.dedupe.clear(); u.gen = null; u.genMiss = 0; u.nonceLast = null; u.seen = null; u.seenOrder = null; }
 
   /** One captured 802.11 frame (no FCS). meta: {rssi, channel}. Returns true if it was an OpenHD frame. */
   push(f, meta = {}) {
@@ -261,10 +271,16 @@ export class Receiver {
     const st = u.st;
     st.packets++; st.bytes += len;
     st.ports[h.port] = (st.ports[h.port] ?? 0) + 1;
+    // loss = nonces skipped; a late packet (several dongles: another one's copy arrives after newer
+    // packets, docs/14) fills its gap again, so it is subtracted
+    const seen = u.seen ??= new Set(), order = u.seenOrder ??= [];
+    const n = Number(h.nonce & 0xffffffffn);
     if (u.nonceLast !== null) {
       const d = h.nonce - u.nonceLast;
       if (d > 0n && d < 100000n) { st.nonceSpan += Number(d); if (d > 1n) st.nonceGaps += Number(d - 1n); }
+      else if (d < 0n && d > -4096n && !seen.has(n) && st.nonceGaps > 0) { st.nonceGaps--; st.lateFilled = (st.lateFilled ?? 0) + 1; }
     } else st.nonceSpan++;
+    if (!seen.has(n)) { seen.add(n); order.push(n); if (order.length > 4096) seen.delete(order.shift()); }
     if (u.nonceLast === null || h.nonce > u.nonceLast) u.nonceLast = h.nonce;
     u.last = now;
     this.trackRf(u, meta);
@@ -303,7 +319,7 @@ export class Receiver {
       const cam = port - PORT.VIDEO0;
       let s = u.fec.get(port);
       if (!s) {
-        s = new FecStream({ queue: this.opts.queue, forwardGapped: this.opts.forwardGapped, out: (pkt, info) => {
+        s = new FecStream({ queue: this.opts.queue, forwardGapped: this.opts.forwardGapped, holdMs: this.opts.holdMs, now: this.now, out: (pkt, info) => {
           u.st.video[cam]++; u.st.videoBytes[cam] += pkt.length;
           this.cb.onRtp?.(u, cam, pkt, info);
         } });

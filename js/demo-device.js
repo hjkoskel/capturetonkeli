@@ -23,22 +23,27 @@ const SSIDS = ['Koti', 'Elisa-5G', 'DNA-WIFI-21A4', 'TP-Link_8C2E', 'Telia-ABCD'
 
 export class DemoDevice {
   /** onBytes(Uint8Array): device → host bytes. */
-  constructor({ onBytes, seed = 1, caps = W.CAP.GHZ5 | W.CAP.HT40 | W.CAP.MANUAL_COUNTRY, fwVersion = 0x00010000 } = {}) {
+  constructor({ onBytes, seed = 1, caps = W.CAP.GHZ5 | W.CAP.HT40 | W.CAP.MANUAL_COUNTRY, fwVersion = 0x00010000, index = 0, air = null } = {}) {
     this.onBytes = onBytes;
-    this.rng = mulberry32(seed);
+    this.rng = mulberry32(seed + 7919 * index);
+    // several demo dongles hear the same air, each with its own antenna and clock (docs/14 diversity demo)
+    this.air = air ?? new DemoAir(seed);
+    this.index = index;
+    this.radio = RADIOS[index % RADIOS.length];
+    this.cursor = new Map();
     this.caps = caps;
     this.fwVersion = fwVersion;
     this.buildId = Uint8Array.from([0xde, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01]);
-    this.mac = Uint8Array.from([0x02, 0xc5, 0xde, 0x40, 0x00, 0x01]);
+    this.mac = Uint8Array.from([0x02, 0xc5, 0xde, 0x40, 0x00, 0x01 + index]);
     this.t0 = performance.now();
     this.faults = { drop: 0, corrupt: 0, garbage: false, stallUntil: 0, saturate: false };
-    this.bss = {};
-    this.seqNo = 0;
     this.attached = false;
     this.boot(W.RESET.indexOf('POWER_ON'));
   }
 
-  nowUs() { return Math.floor((performance.now() - this.t0) * 1000); }
+  nowUs() { return this.devUs(performance.now()); }
+  /** This dongle's clock: boot time t0, crystal error radio.ppm, callback jitter in the frame path. */
+  devUs(t, jitter = 0) { return Math.floor((t - this.t0) * 1000 * (1 + this.radio.ppm * 1e-6) + jitter); }
 
   boot(reason) {
     this.cfg = bootConfig();
@@ -69,6 +74,7 @@ export class DemoDevice {
   attach() {
     if (this.attached) return;
     this.attached = true;
+    this.cursor.clear(); // a re-plugged dongle hears the air from now on, not what it missed
     this.lastTick = performance.now();
     this.timer = setInterval(() => this.tick(), 10);
   }
@@ -217,68 +223,6 @@ export class DemoDevice {
     return { deviceTimeUs: this.nowUs(), ...this.cnt, ringHighWater: this.cnt.highWater, channel: this.cfg.channel, noiseFloor: -95, flashWrites: 0 };
   }
 
-  // ---- traffic ------------------------------------------------------------------------
-  aps(ch) {
-    if (!this.bss[ch]) {
-      const n = ch <= 14 ? 3 + Math.floor(this.rng() * 5) : 1 + Math.floor(this.rng() * 3);
-      this.bss[ch] = Array.from({ length: n }, () => ({
-        mac: Uint8Array.from([2 | (Math.floor(this.rng() * 64) << 2), ...Array.from({ length: 5 }, () => Math.floor(this.rng() * 256))]),
-        ssid: SSIDS[Math.floor(this.rng() * SSIDS.length)], rssi: -35 - Math.floor(this.rng() * 55),
-      }));
-    }
-    return this.bss[ch];
-  }
-
-  frame(ch) {
-    const r = this.rng, aps = this.aps(ch), ap = aps[Math.floor(r() * aps.length)];
-    const sta = Uint8Array.from([0x02, 0x11, 0x22, 0x33, ch, Math.floor(r() * 6)]);
-    const bc = new Uint8Array(6).fill(0xff);
-    const hdr = (fc0, fc1, a1, a2, a3) => {
-      this.seqNo = (this.seqNo + 1) & 0xfff;
-      return [fc0, fc1, 0, 0, ...a1, ...a2, ...a3, (this.seqNo << 4) & 0xff, this.seqNo >> 4];
-    };
-    let f, bb = ch > 14 || r() < 0.75 ? W.BB.G11 : W.BB.B11, rate = bb === W.BB.B11 ? 2 : 12;
-    const x = r() * 100;
-    const ssid = new TextEncoder().encode(ap.ssid);
-    if (x < 14) {
-      f = [...hdr(0x80, 0, bc, ap.mac, ap.mac), ...new Array(8).fill(0), 0x64, 0, 0x31, 0x04, 0, ssid.length, ...ssid,
-        1, 8, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24, 3, 1, ch, 48, 20, 1, 0, 0, 0x0f, 0xac, 4, 1, 0, 0, 0x0f, 0xac, 4, 1, 0, 0, 0x0f, 0xac, 2, 0, 0];
-    } else if (x < 19) {
-      f = [...hdr(0x40, 0, bc, sta, bc), 0, 0, 1, 4, 0x02, 0x04, 0x0b, 0x16];
-    } else if (x < 23) {
-      f = [...hdr(0x50, 0, sta, ap.mac, ap.mac), ...new Array(8).fill(0), 0x64, 0, 0x31, 0x04, 0, ssid.length, ...ssid, 3, 1, ch];
-    } else if (x < 40) {
-      f = [0xd4, 0, 0, 0, ...sta];
-    } else if (x < 46) {
-      f = [0xb4, 0, 0x2c, 0, ...ap.mac, ...sta];
-    } else if (x < 47) {
-      f = [...hdr(0x88, 0x02, sta, ap.mac, ap.mac), 0, 0, 0xaa, 0xaa, 3, 0, 0, 0, 0x88, 0x8e, 2, 3, 0, 0x5f, ...new Array(91).fill(0)];
-    } else if (x < 47.3) {
-      f = [...hdr(0xc0, 0, sta, ap.mac, ap.mac), 7, 0];
-    } else {
-      const n = 40 + Math.floor(r() * 1400);
-      f = [...hdr(0x88, r() < 0.5 ? 0x41 : 0x42, ap.mac, sta, ap.mac), 0, 0];
-      for (let i = 0; i < n; i++) f.push(Math.floor(r() * 256));
-      if (r() < 0.6) { bb = W.BB.HT; rate = Math.floor(r() * 8); }
-    }
-    const data = Uint8Array.from(f);
-    const fcs = crc32(data);
-    const out = new Uint8Array(data.length + 4);
-    out.set(data);
-    new DataView(out.buffer).setUint32(data.length, fcs, true);
-    const fcsErr = r() < 0.01;
-    if (fcsErr) out[out.length - 1] ^= 0x5a;
-    return { data: out, rssi: Math.max(-95, Math.min(-20, ap.rssi + Math.floor(r() * 7) - 3)), rate, bb, fcsErr };
-  }
-
-  /** Wraps an 802.11 frame without FCS as a captured HT MCS3 frame (hx / OpenHD demo). */
-  withFcs(data, rssi) {
-    const out = new Uint8Array(data.length + 4);
-    out.set(data);
-    new DataView(out.buffer).setUint32(data.length, crc32(data), true);
-    return { data: out, rssi, rate: 3, bb: W.BB.HT, fcsErr: false };
-  }
-
   driverPass(f) {
     const t = (f[0] >> 2) & 3, sub = f[0] >> 4, m = this.cfg.typeMask >>> 0;
     if (t === 0) return !!(m & 1);
@@ -301,7 +245,7 @@ export class DemoDevice {
     const seq = this.rxSeq; this.rxSeq = (this.rxSeq + 1) & 0xffff;
     const rec = 4 + 20 + cap;
     if (this.ringBytes + rec > RING_BYTES) { this.cnt.dropRing++; return; }
-    const body = W.encPkt({ tsUs: Math.floor((now - this.t0) * 1000), channel: this.cfg.channel, flags, rssi: fr.rssi, noise: -95,
+    const body = W.encPkt({ tsUs: this.devUs(fr.t ?? now, (this.rng() - 0.5) * 2 * this.radio.jitterUs), channel: this.cfg.channel, flags, rssi: fr.rssi, noise: -95,
       rate: fr.rate, bbFormat: fr.bb, origLen: ol, capLen: cap, rxSeq: seq }, fr.data.subarray(0, cap));
     this.ring.push({ type: W.T.PKT, reqId: 0, cfgGen: this.cfg.cfgGen, body });
     this.ringBytes += rec;
@@ -314,16 +258,20 @@ export class DemoDevice {
     const dt = Math.min(0.1, (now - this.lastTick) / 1000);
     this.lastTick = now;
     if (this.cfg.captureOn && this.session) {
-      const rate = (this.cfg.channel <= 14 ? 600 : 250) * (this.faults.saturate ? 40 : 1);
-      this.carry += rate * dt;
-      while (this.carry >= 1) { this.carry--; this.capture(this.frame(this.cfg.channel), now); }
-      if (this.cfg.channel === DEMO_CHANNEL) {
-        this.hx ??= new HxAirSim(this.rng);
-        for (const f of this.hx.poll(now)) this.capture(this.withFcs(f, -50 - Math.floor(this.rng() * 5)), now);
-      }
-      if (this.cfg.channel === OHD_DEMO_CHANNEL) {
-        this.ohd ??= new OhdAirSim(this.rng);
-        for (const f of this.ohd.poll(now)) this.capture(this.withFcs(f, -56 - Math.floor(this.rng() * 6)), now);
+      const ch = this.cfg.channel;
+      const { frames, next } = this.air.poll(ch, now, this.cursor.get(ch) ?? null, this.faults.saturate ? 40 : 1);
+      this.cursor.set(ch, next);
+      for (const f of frames) {
+        if (this.rng() < this.radio.loss) continue; // this antenna missed it
+        const rssi = Math.max(-96, Math.min(-20, f.rssi + this.radio.rssi + Math.round((this.rng() - 0.5) * 4)));
+        if (rssi <= -95) continue;
+        let fr = { ...f, rssi };
+        if (this.rng() < 0.012) { // received with bit errors at this antenna
+          const d = f.data.slice();
+          d[Math.floor(this.rng() * d.length)] ^= 1 << Math.floor(this.rng() * 8);
+          fr = { ...fr, data: d, fcsErr: true };
+        }
+        this.capture(fr, now);
       }
     }
     if (this.session && now - this.lastRx > WATCHDOG_MS) {
@@ -385,6 +333,111 @@ export class DemoDevice {
 }
 
 const now = () => performance.now();
+
+/** Per demo dongle: missed frames, antenna gain (dB), crystal error, time-stamp jitter in the frame path. */
+const RADIOS = [
+  { loss: 0.04, rssi: 0, ppm: 0, jitterUs: 4 },
+  { loss: 0.10, rssi: -7, ppm: 23, jitterUs: 4 },
+  { loss: 0.16, rssi: 3, ppm: -31, jitterUs: 4 },
+  { loss: 0.22, rssi: -12, ppm: 12, jitterUs: 4 },
+];
+
+/**
+ * The simulated air: frames are generated once per channel and every demo dongle tuned to
+ * that channel hears them (each with its own losses, RSSI and clock), so several demo
+ * dongles show receive diversity. Frames keep their air time (ms, performance.now()).
+ */
+export class DemoAir {
+  constructor(seed = 1) {
+    this.rng = mulberry32(seed);
+    this.bss = {};
+    this.seqNo = 0;
+    this.ch = new Map(); // channel → { t, carry, log: [{t, data, rssi, rate, bb, fcsErr}], base }
+  }
+
+  /** Frames on `ch` after `cursor` up to `now`; returns { frames, next }. */
+  poll(ch, now, cursor, load = 1) {
+    let c = this.ch.get(ch);
+    if (!c) { c = { t: now, carry: 0, log: [], base: 0 }; this.ch.set(ch, c); }
+    if (now > c.t) {
+      const rate = (ch <= 14 ? 600 : 250) * load, dt = Math.min(0.1, (now - c.t) / 1000);
+      c.carry += rate * dt;
+      const n = Math.floor(c.carry);
+      c.carry -= n;
+      for (let i = 0; i < n; i++) c.log.push({ ...this.frame(ch), t: c.t + ((i + 1) / (n + 1)) * (now - c.t) });
+      if (ch === DEMO_CHANNEL) { this.hx ??= new HxAirSim(this.rng); for (const f of this.hx.poll(now)) c.log.push({ ...this.withFcs(f, -50 - Math.floor(this.rng() * 5)), t: now }); }
+      if (ch === OHD_DEMO_CHANNEL) { this.ohd ??= new OhdAirSim(this.rng); for (const f of this.ohd.poll(now)) c.log.push({ ...this.withFcs(f, -56 - Math.floor(this.rng() * 6)), t: now }); }
+      c.t = now;
+      let drop = 0;
+      while (drop < c.log.length && now - c.log[drop].t > 2000) drop++;
+      if (drop) { c.log.splice(0, drop); c.base += drop; }
+    }
+    const end = c.base + c.log.length;
+    const from = cursor === null ? end : Math.max(cursor, c.base); // a new listener starts now
+    return { frames: c.log.slice(from - c.base), next: end };
+  }
+
+  // ---- traffic ------------------------------------------------------------------------
+  aps(ch) {
+    if (!this.bss[ch]) {
+      const n = ch <= 14 ? 3 + Math.floor(this.rng() * 5) : 1 + Math.floor(this.rng() * 3);
+      this.bss[ch] = Array.from({ length: n }, () => ({
+        mac: Uint8Array.from([2 | (Math.floor(this.rng() * 64) << 2), ...Array.from({ length: 5 }, () => Math.floor(this.rng() * 256))]),
+        ssid: SSIDS[Math.floor(this.rng() * SSIDS.length)], rssi: -35 - Math.floor(this.rng() * 55),
+      }));
+    }
+    return this.bss[ch];
+  }
+
+  frame(ch) {
+    const r = this.rng, aps = this.aps(ch), ap = aps[Math.floor(r() * aps.length)];
+    const sta = Uint8Array.from([0x02, 0x11, 0x22, 0x33, ch, Math.floor(r() * 6)]);
+    const bc = new Uint8Array(6).fill(0xff);
+    const hdr = (fc0, fc1, a1, a2, a3) => {
+      this.seqNo = (this.seqNo + 1) & 0xfff;
+      return [fc0, fc1, 0, 0, ...a1, ...a2, ...a3, (this.seqNo << 4) & 0xff, this.seqNo >> 4];
+    };
+    let f, bb = ch > 14 || r() < 0.75 ? W.BB.G11 : W.BB.B11, rate = bb === W.BB.B11 ? 2 : 12;
+    const x = r() * 100;
+    const ssid = new TextEncoder().encode(ap.ssid);
+    if (x < 14) {
+      f = [...hdr(0x80, 0, bc, ap.mac, ap.mac), ...new Array(8).fill(0), 0x64, 0, 0x31, 0x04, 0, ssid.length, ...ssid,
+        1, 8, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24, 3, 1, ch, 48, 20, 1, 0, 0, 0x0f, 0xac, 4, 1, 0, 0, 0x0f, 0xac, 4, 1, 0, 0, 0x0f, 0xac, 2, 0, 0];
+    } else if (x < 19) {
+      f = [...hdr(0x40, 0, bc, sta, bc), 0, 0, 1, 4, 0x02, 0x04, 0x0b, 0x16];
+    } else if (x < 23) {
+      f = [...hdr(0x50, 0, sta, ap.mac, ap.mac), ...new Array(8).fill(0), 0x64, 0, 0x31, 0x04, 0, ssid.length, ...ssid, 3, 1, ch];
+    } else if (x < 40) {
+      f = [0xd4, 0, 0, 0, ...sta];
+    } else if (x < 46) {
+      f = [0xb4, 0, 0x2c, 0, ...ap.mac, ...sta];
+    } else if (x < 47) {
+      f = [...hdr(0x88, 0x02, sta, ap.mac, ap.mac), 0, 0, 0xaa, 0xaa, 3, 0, 0, 0, 0x88, 0x8e, 2, 3, 0, 0x5f, ...new Array(91).fill(0)];
+    } else if (x < 47.3) {
+      f = [...hdr(0xc0, 0, sta, ap.mac, ap.mac), 7, 0];
+    } else {
+      const n = 40 + Math.floor(r() * 1400);
+      f = [...hdr(0x88, r() < 0.5 ? 0x41 : 0x42, ap.mac, sta, ap.mac), 0, 0];
+      for (let i = 0; i < n; i++) f.push(Math.floor(r() * 256));
+      if (r() < 0.6) { bb = W.BB.HT; rate = Math.floor(r() * 8); }
+    }
+    const data = Uint8Array.from(f);
+    const fcs = crc32(data);
+    const out = new Uint8Array(data.length + 4);
+    out.set(data);
+    new DataView(out.buffer).setUint32(data.length, fcs, true);
+    return { data: out, rssi: Math.max(-95, Math.min(-20, ap.rssi + Math.floor(r() * 7) - 3)), rate, bb, fcsErr: false };
+  }
+
+  /** Wraps an 802.11 frame without FCS as a captured HT MCS3 frame (hx / OpenHD demo). */
+  withFcs(data, rssi) {
+    const out = new Uint8Array(data.length + 4);
+    out.set(data);
+    new DataView(out.buffer).setUint32(data.length, crc32(data), true);
+    return { data: out, rssi, rate: 3, bb: W.BB.HT, fcsErr: false };
+  }
+
+}
 
 function mulberry32(a) {
   return () => {
