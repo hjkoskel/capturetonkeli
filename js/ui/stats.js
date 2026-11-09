@@ -6,7 +6,7 @@ const DEV = [['rxTotal', 'Frames seen'], ['rxPassed', 'Passed filter'], ['dropRi
   ['txFrames', 'Sent over USB'], ['txBytes', 'USB bytes'], ['hostRxCrcErr', 'Bad frames from host'], ['hostRxOversize', 'Oversize frames from host']];
 
 export function initStats(root) {
-  const devT = h('table.stats-table'), hostT = h('table.stats-table');
+  const devT = h('table.stats-table'), hostT = h('table.stats-table'), usbT = h('table.stats-table'), usbHint = h('div');
   const gauge = h('div.gauge', h('div', { style: { width: '0%' } })), gaugeTxt = h('span.small.mono');
   const diag = h('div.diag', 'Not connected.');
   const canvas = h('canvas.spark', { width: 600, height: 90, 'aria-label': 'Rates over the last 120 s' });
@@ -16,6 +16,7 @@ export function initStats(root) {
     h('h3', 'Dongle counters'), devT,
     h('div.row', 'Ring high-water ', h('div', { style: { flex: 1 } }, gauge), gaugeTxt),
     h('h3', 'This page'), hostT,
+    h('h3', 'USB link (this browser)'), usbT, usbHint,
     h('h3', 'Last 120 s'), canvas,
     h('div.small.muted', '— passed/s  — dropped/s  — host lost/s'),
     h('div.row', h('button', { onclick: refresh }, 'Refresh now'), h('button.danger', { onclick: resetCounters }, 'Reset counters')),
@@ -85,6 +86,33 @@ export function initStats(root) {
       ['Packet store', `${fmtNum(s.stored)} (${Math.round(s.fill * 100)}%)`], ['Parse time', `${s.parseMs.toFixed(1)} ms / 0.5 s`],
       ['PING RTT', (() => { const r = app.client?.rttStats(); return r ? `${r.median.toFixed(1)} ms (p95 ${r.p95.toFixed(1)})` : '–'; })()],
     ]);
+  });
+  // WebUSB read loop (docs/01 §6): is the browser keeping reads queued, and how full are they?
+  let prevLs = null;
+  app.addEventListener('host', () => {
+    const t = app.transport;
+    if (!t?.linkStats) { usbT.replaceChildren(h('tr', h('td', t ? `${t.label}: the operating system driver buffers the data; see "Bytes in" above.` : 'Not connected.'))); usbHint.replaceChildren(); prevLs = null; return; }
+    const l = t.linkStats(), now = performance.now();
+    const p = prevLs && prevLs.t0 === l.t0 ? prevLs : null, dt = p ? (now - p.now) / 1000 : 0;
+    const per = (k) => (p && dt ? (l[k] - p[k]) / dt : null);
+    const reads = per('reads'), bytes = per('bytes');
+    // how long the queued reads last at the current read rate: a longer main-thread stall stops the dongle sending
+    const coverMs = reads > 0 ? (1000 * l.inflight) / reads : null;
+    rows(usbT, [
+      ['API', `WebUSB, ${l.inflight} reads of ${fmtBytes(l.size)} queued`],
+      ['Received', fmtBytes(l.bytes), bytes === null ? '' : `${fmtBytes(bytes)}/s`],
+      ['Reads', fmtNum(l.reads), reads === null ? '' : fmtNum(Math.round(reads))],
+      ['Bytes per read', l.reads ? fmtBytes(Math.round(l.bytes / l.reads)) : '–', reads && bytes !== null ? fmtBytes(Math.round(bytes / Math.max(1, reads))) : ''],
+      ['Reads filled completely', `${l.reads ? Math.round((100 * l.full) / l.reads) : 0} %`],
+      ['Queued reads last', coverMs === null ? '–' : `≈ ${fmtNum(Math.round(coverMs))} ms at this rate`],
+      ['Page busy (longest stall)', `${l.lagMs.toFixed(0)} ms`],
+      ['Longest gap between reads', `${l.maxGapMs.toFixed(0)} ms`],
+    ]);
+    const starved = coverMs !== null && l.lagMs > coverMs;
+    const drop = (app.devStats?.dropRing ?? 0) > (prevLs?.drop ?? Infinity);
+    usbHint.replaceChildren(...(drop && starved ? [h('div.inline-msg.warn', 'The dongle drops frames and the page was busy longer than the queued USB reads last: the browser cannot keep reads queued. Queue more reads (Settings → Developer), show another tab than the packet list, filter more or lower the snaplen.')]
+      : drop ? [h('div.inline-msg.warn', 'The dongle drops frames although reads are always queued: the USB link itself is full. Filter more or lower the snaplen.')] : []));
+    prevLs = { ...l, now, drop: app.devStats?.dropRing ?? 0 };
   });
   app.addEventListener('conn', (e) => { if (e.detail === 'disconnected') { diag.textContent = 'Not connected.'; prev = null; } });
 

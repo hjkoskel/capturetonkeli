@@ -95,12 +95,37 @@ export class SerialTransport extends Base {
 
 // ---- WebUSB + CDC-ACM shim (Android Chrome) ---------------------------------------------
 
+/**
+ * Bulk IN reads queued at once and their size (Settings → Developer). A read ends at the first
+ * short USB packet (< 64 B, i.e. whenever the dongle's TX buffer ran empty), so on a lightly loaded
+ * link each read carries little; what matters is that reads are always queued. Each completion
+ * passes through the main thread, so a busy page (rendering) delays the re-queue: more reads in
+ * flight bridge such stalls (docs/01 §6).
+ */
+export const USB_TUNING = { inflight: 16, size: 16384 };
+
 export class UsbTransport extends Base {
   constructor(device) {
     super();
     this.dev = device;
     this.kind = 'webusb';
     this.label = 'WebUSB (CDC-ACM)';
+    this.resetLinkStats();
+  }
+
+  resetLinkStats() {
+    this.ls = { t0: performance.now(), reads: 0, bytes: 0, empty: 0, full: 0, maxGapMs: 0, last: 0, lagMs: 0 };
+  }
+  /**
+   * Host-side link statistics (Stats tab): reads, bytes, full reads, longest gap between reads and
+   * the longest main-thread stall since the last call (a stall longer than the queued reads can
+   * cover leaves the dongle unable to send).
+   */
+  linkStats() { const s = { ...this.ls, inflight: this.inflight, size: this.size }; this.ls.lagMs = 0; return s; }
+  /** Main-thread stall monitor: a 20 ms timer that fires late measures how long the page was busy. */
+  startLagMonitor() {
+    let due = performance.now() + 20;
+    this.lagTimer = setInterval(() => { const now = performance.now(); this.ls.lagMs = Math.max(this.ls.lagMs, now - due); due = now + 20; }, 20);
   }
 
   get portId() { return this.dev; }
@@ -141,15 +166,26 @@ export class UsbTransport extends Base {
     this.closed = false;
     this.onDisconnect = (e) => { if (e.device === d) this.fail(Object.assign(new Error('The device was disconnected'), { name: 'NetworkError' })); };
     navigator.usb.addEventListener('disconnect', this.onDisconnect);
-    for (let i = 0; i < 8; i++) this.inLoop(); // ≥ 8 transfers in flight (docs/01)
+    this.inflight = Math.max(1, Math.min(64, USB_TUNING.inflight | 0));
+    this.size = USB_TUNING.size;
+    this.resetLinkStats();
+    this.startLagMonitor();
+    for (let i = 0; i < this.inflight; i++) this.inLoop();
   }
 
   async inLoop() {
+    const ls = this.ls;
     while (!this.closed) {
       try {
-        const r = await this.dev.transferIn(this.epIn, 16384);
+        const r = await this.dev.transferIn(this.epIn, this.size);
+        const now = performance.now();
         if (r.status === 'stall') { await this.dev.clearHalt('in', this.epIn); continue; }
-        if (r.data?.byteLength) this.dataCb(new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength));
+        const n = r.data?.byteLength ?? 0;
+        ls.reads++; ls.bytes += n;
+        if (!n) ls.empty++; else if (n === this.size) ls.full++;
+        if (n && ls.last) ls.maxGapMs = Math.max(ls.maxGapMs, now - ls.last);
+        if (n) ls.last = now;
+        if (n) this.dataCb(new Uint8Array(r.data.buffer, r.data.byteOffset, n));
       } catch (e) {
         if (!this.closed) this.fail(e);
         return;
@@ -167,6 +203,7 @@ export class UsbTransport extends Base {
   async close() {
     if (this.closed) return;
     this.closed = true;
+    clearInterval(this.lagTimer);
     navigator.usb?.removeEventListener('disconnect', this.onDisconnect);
     try { await this.dev.close(); } catch { /* ignore */ }
   }

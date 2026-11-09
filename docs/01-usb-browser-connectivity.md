@@ -24,6 +24,15 @@
 - A busy 802.11 channel exceeds this easily → device-side filtering + snaplen truncation + compact binary framing are mandatory, not optional.
 - Latency: FS bulk scheduled per 1 ms frame; USJ sends in 64-byte packets. Keep several IN transfers queued on WebUSB side (≈16 in flight) to avoid starving.
 
+## WebUSB throughput (Android)
+
+- `getReader({ bufferSize })` belongs to Web Serial; WebUSB has no stream buffer. The page queues several bulk IN reads (`transferIn`) itself: default **16 reads of 16 KB** (Settings → Developer: 2–64 reads, 16 or 64 KB; 64 KB needs a newer Android, older kernels cap bulk transfers at 16 KB).
+- A read completes at the first **short packet** (< 64 B). The USJ driver sends one whenever its TX buffer runs empty, so on a lightly loaded link a read carries a few hundred bytes; under load the packets are full and reads fill up.
+- Every completion passes through the page's **main thread** before the read is queued again. If the page is busy (packet list, video) longer than the queued reads last at the current read rate, the dongle cannot send and its ring overflows (`drop_ring`). JavaScript re-queues each read as soon as it resumes, so "nothing queued" cannot be observed directly; the page compares its longest main-thread stall (20 ms timer drift) with how long the queued reads last.
+- **Stats tab → "USB link (this browser)"**: KB/s, reads/s, bytes per read, full reads, how long the queued reads last, longest page stall, longest gap; a hint says whether drops come from a busy page (queue more reads, show a lighter tab, filter more) or from a full USB link.
+- Next step if the page stalls are the limit: run the reads in the packet worker (WebUSB in dedicated workers); the start page shows whether this browser offers it ("WebUSB in a worker").
+- Desktop Web Serial does not have this problem: the OS driver keeps reading into its own buffer whatever the page does.
+
 ## Rejected alternatives
 - Wi-Fi SoftAP + WebSocket: same radio as capture; forces channel lock, breaks hopping, adds own traffic to capture.
 - BLE + Web Bluetooth: far too slow, shares radio time with Wi-Fi, no Firefox/Safari.

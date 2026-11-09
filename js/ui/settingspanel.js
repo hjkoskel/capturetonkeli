@@ -3,6 +3,7 @@ import { app } from '../app.js';
 import { h, confirmDlg, download, toast, inline } from './dom.js';
 import * as settings from '../settings.js';
 import * as wake from '../wakelock.js';
+import { USB_TUNING } from '../transport.js';
 
 export function initSettings(root, { applyTheme }) {
   const s = settings.get();
@@ -44,6 +45,8 @@ export function initSettings(root, { applyTheme }) {
     chk('recFiltered', ' Record only packets matching the display filter'),
     h('h3', 'Developer'),
     num('pingInterval', 'PING interval (ms)', 250, 2000),
+    num('usbInflight', 'WebUSB reads queued (Android; next connect)', 2, 64, (v) => { USB_TUNING.inflight = v; }),
+    sel('usbSize', 'WebUSB read size (next connect)', [['16384', '16 KB'], ['65536', '64 KB (newer Android only)']], (v) => { USB_TUNING.size = Number(v); }),
     chk('showRaw', ' Log every received control frame'),
     h('h3', 'Settings file'),
     h('div.row',
