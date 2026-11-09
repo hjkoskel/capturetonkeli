@@ -36,7 +36,7 @@ export function initSettings(root, { applyTheme }) {
     wakeNote,
     sel('transport', 'Transport', [['auto', 'Auto (Web Serial; on Android WebUSB until Web Serial shows a USB port)'], ['serial', 'Web Serial'], ['webusb', 'WebUSB (CDC-ACM shim)']]),
     h('h3', 'Packet list'),
-    num('storeSize', 'Packet store size (packets kept in memory)', 10000, 2000000, (v) => { app.post({ t: 'store-size', n: v }); toast('Packet store resized (list cleared)'); }),
+    num('storeSize', 'Packet store size (packets kept; older ones are discarded)', 1000, 2000000, (v) => { app.post({ t: 'store-size', n: v }); toast('Packet store resized (list cleared)'); }),
     sel('timeFormat', 'Time column', [['rel', 'Relative to first packet'], ['abs', 'Host clock'], ['dev', 'Device µs']]),
     chk('colors', ' Colour rows by frame class'),
     sel('theme', 'Theme', [['auto', 'Follow system'], ['light', 'Light'], ['dark', 'Dark']], applyTheme),

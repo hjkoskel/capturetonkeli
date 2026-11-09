@@ -10,24 +10,31 @@ export function initPackets() {
   const auto = $('#autoscroll'), jump = $('#jump-live'), freezeBtn = $('#btn-freeze'), dfilter = $('#dfilter'), dmsg = $('#dfilter-msg');
   const detailEl = $('#detail'), detailBody = $('#detail-body');
   let ROW = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--row')) || 24;
-  let total = 0, frozen = false, inflight = false, selected = null, lastStart = -2, newSince = 0, lastTotal = 0;
+  let total = 0, frozen = false, inflight = false, selected = null, lastStart = -2, newSince = 0, lastTotal = 0, lastReceived = -1, dirty = true;
+  // phones: half the refresh rate; the list then costs less of the main thread that also keeps the USB reads queued
+  const FRAME_MS = matchMedia('(pointer: coarse)').matches ? 66 : 33;
+  const pool = []; // row elements, reused (no per-frame DOM creation)
+  // cached geometry: reading clientHeight/scrollTop after a DOM update forces a synchronous layout every frame
+  let gridH = grid.clientHeight, scrollTop = grid.scrollTop;
+  new ResizeObserver(() => { gridH = grid.clientHeight; dirty = true; }).observe(grid);
   let programmaticScroll = false;
 
   function frame() {
     requestAnimationFrame(frame);
     if (frozen || inflight || document.hidden) return;
     const now = performance.now();
-    if (now - (frame.t ?? 0) < 33) return; // ≤ 30 fps
+    if (now - (frame.t ?? 0) < FRAME_MS) return; // ≤ 30 fps (15 on touch devices)
     frame.t = now;
-    const count = Math.ceil(grid.clientHeight / ROW) + 2;
-    const start = auto.checked ? -1 : Math.max(0, Math.floor(grid.scrollTop / ROW));
+    const count = Math.ceil(gridH / ROW) + 2;
+    const start = auto.checked ? -1 : Math.max(0, Math.floor(scrollTop / ROW));
     inflight = true;
     app.ask({ t: 'view', start, count }).then((v) => { inflight = false; render(v, count); });
   }
 
   function render(v, count) {
     total = v.total;
-    spacer.style.height = `${total * ROW}px`;
+    const sh = `${total * ROW}px`;
+    if (spacer.style.height !== sh) spacer.style.height = sh;
     empty.classList.toggle('hidden', total > 0);
     empty.textContent = app.conn === 'connected' ? (app.config?.captureOn ? 'Waiting for packets…' : 'Capture is stopped. Press ▶ Capture.') : 'No packets yet.';
     if (!auto.checked && total > lastTotal) newSince += total - lastTotal;
@@ -36,13 +43,48 @@ export function initPackets() {
     jump.textContent = `Jump to live (${newSince} new)`;
     if (auto.checked) {
       programmaticScroll = true;
-      grid.scrollTop = Math.max(0, total * ROW - grid.clientHeight);
+      const top = Math.max(0, total * ROW - gridH);
+      if (top !== scrollTop) { grid.scrollTop = top; scrollTop = top; } else programmaticScroll = false;
     }
+    // nothing new and not scrolled: keep the DOM as it is
+    const tf = settings.get().timeFormat;
+    if (tf !== render.tf) { render.tf = tf; dirty = true; }
+    if (!dirty && v.received === lastReceived && v.start === lastStart && v.rows.length === rowsEl.childElementCount) return;
+    dirty = false; lastReceived = v.received;
     rowsEl.style.transform = `translateY(${v.start * ROW}px)`;
     const fmtT = timeFmt();
-    rowsEl.replaceChildren(...v.rows.map((r) => (r.marker ? h(`div.prow.marker.${r.kind}`, { role: 'row' }, h('span', `▸ ${r.marker}`)) : rowEl(r, fmtT))));
+    v.rows.forEach((r, i) => {
+      const el = pool[i] ??= newRow();
+      fillRow(el, r, fmtT);
+      if (rowsEl.children[i] !== el) rowsEl.insertBefore(el, rowsEl.children[i] ?? null);
+    });
+    while (rowsEl.childElementCount > v.rows.length) rowsEl.lastElementChild.remove();
     lastStart = v.start;
     void count;
+  }
+  function newRow() {
+    const el = h('div.prow', { role: 'row' });
+    for (let k = 0; k < 11; k++) el.append(h('span'));
+    el.children[3].append(document.createTextNode(''), h('span.rssi-bar'));
+    return el;
+  }
+  const set = (sp, text) => { if (sp.textContent !== text) sp.textContent = text; };
+  function fillRow(el, r, fmtT) {
+    const s = el.children;
+    if (r.marker) {
+      el.className = `prow marker ${r.kind}`;
+      delete el.dataset.n;
+      s[0].textContent = `▸ ${r.marker}`;
+      return;
+    }
+    el.className = `prow ${r.cls}${r.fcsErr ? ' fcs' : ''}${selected === r.n ? ' sel' : ''}`;
+    el.dataset.n = r.n;
+    set(s[0], String(r.n)); set(s[1], fmtT(r)); set(s[2], `${r.ch}${r.ht40 ? '⁴⁰' : ''}`);
+    s[3].firstChild.data = String(r.rssi);
+    s[3].lastChild.style.width = `${Math.max(1, Math.min(14, (r.rssi + 100) / 5))}px`;
+    set(s[4], r.rate); set(s[5], r.len); s[5].className = r.trunc ? 'trunc' : '';
+    s[6].className = 't-type'; set(s[6], r.type); set(s[7], r.src); set(s[8], r.dst); set(s[9], r.bssid);
+    set(s[10], r.info); s[10].title = r.info;
   }
 
   function timeFmt() {
@@ -52,25 +94,18 @@ export function initPackets() {
     return (r) => r.t.toFixed(6);
   }
 
-  function rowEl(r, fmtT) {
-    const el = h(`div.prow.${r.cls}${r.fcsErr ? '.fcs' : ''}${selected === r.n ? '.sel' : ''}`, { role: 'row', 'data-n': r.n },
-      h('span', r.n), h('span', fmtT(r)), h('span', r.ch, r.ht40 ? '⁴⁰' : ''),
-      h('span', r.rssi, h('span.rssi-bar', { style: { width: `${Math.max(1, Math.min(14, (r.rssi + 100) / 5))}px` } })),
-      h('span', r.rate), h(`span${r.trunc ? '.trunc' : ''}`, r.len), h('span.t-type', r.type), h('span', r.src), h('span', r.dst), h('span', r.bssid),
-      h('span', { title: r.info }, r.info));
-    return el;
-  }
 
   grid.addEventListener('scroll', () => {
+    scrollTop = grid.scrollTop;
     if (programmaticScroll) { programmaticScroll = false; return; }
-    const atBottom = grid.scrollTop + grid.clientHeight >= grid.scrollHeight - ROW * 2;
+    const atBottom = scrollTop + gridH >= total * ROW - ROW * 2;
     if (!atBottom && auto.checked) { auto.checked = false; newSince = 0; }
   });
   auto.onchange = () => { newSince = 0; };
   jump.onclick = () => { auto.checked = true; newSince = 0; };
   freezeBtn.onclick = () => toggleFreeze();
   function toggleFreeze() { frozen = !frozen; freezeBtn.classList.toggle('on', frozen); freezeBtn.textContent = frozen ? 'Frozen' : 'Freeze'; }
-  $('#btn-clear').onclick = () => { app.post({ t: 'clear' }); selected = null; detailBody.replaceChildren('Select a packet.'); };
+  $('#btn-clear').onclick = () => { dirty = true; app.post({ t: 'clear' }); selected = null; detailBody.replaceChildren('Select a packet.'); };
   document.addEventListener('keydown', (e) => {
     if (e.key === ' ' && !e.target.closest('input, textarea, select, button, dialog')) { e.preventDefault(); toggleFreeze(); }
   });
@@ -87,6 +122,7 @@ export function initPackets() {
     const r = await app.ask({ t: 'detail', n });
     if (!r.d) { detailBody.replaceChildren(h('p.muted', 'This packet is no longer in the store.')); return; }
     selected = n;
+    dirty = true;
     for (const el of rowsEl.querySelectorAll('.prow.sel')) el.classList.remove('sel');
     rowsEl.querySelector(`.prow[data-n="${n}"]`)?.classList.add('sel');
     renderDetail(r.d);
@@ -100,6 +136,7 @@ export function initPackets() {
     clearTimeout(dT);
     dT = setTimeout(async () => {
       const r = await app.ask({ t: 'filter', expr: dfilter.value });
+      dirty = true;
       dfilter.classList.toggle('invalid', !r.ok);
       dmsg.textContent = r.ok ? (dfilter.value.trim() ? `showing ${r.shown} items` : '') : r.error;
       dmsg.style.color = r.ok ? '' : 'var(--bad)';

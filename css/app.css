@@ -144,6 +144,7 @@ canvas.spark { width: 100%; height: 90px; display: block; }
 .colors .prow.mgmt { background: var(--mgmt); } .colors .prow.ctrl { background: var(--ctrl); } .colors .prow.data { background: var(--data); }
 .prow.fcs .t-type::after { content: " FCS ERR"; color: var(--bad); font-weight: 700; }
 .prow .trunc { font-style: italic; }
+.prow.marker > span:not(:first-child) { display: none; }
 .prow.marker { font-family: system-ui, sans-serif; grid-template-columns: 1fr; background: var(--marker); color: var(--fg); cursor: default; font-weight: 600; }
 .prow.marker.gap { background: var(--marker-gap); } .prow.marker.reset { background: var(--marker-reset); }
 .rssi-bar { display: inline-block; height: 6px; background: var(--ok); vertical-align: middle; margin-left: 3px; border-radius: 2px; }
