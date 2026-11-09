@@ -219,6 +219,7 @@ type Client struct {
 	lastRxSeq   uint16
 	haveRxSeq   bool
 	counters    HostCounters
+	decStats    codec.DecoderStats
 	state       LinkState
 	unsupported bool
 
@@ -231,6 +232,8 @@ type Client struct {
 	once    sync.Once
 	readErr error
 	wg      sync.WaitGroup
+
+	desiredMu sync.Mutex
 }
 
 // Dial opens a serial port ("auto" = the only dongle found) and calls New.
@@ -309,12 +312,26 @@ func (c *Client) handshake(ctx context.Context) error {
 	if _, err := c.GetConfig(ctx); err != nil {
 		return err
 	}
-	if c.o.Desired != nil {
-		if _, err := c.Push(ctx, *c.o.Desired); err != nil {
+	if d := c.desired(); d != nil {
+		if _, err := c.Push(ctx, *d); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (c *Client) desired() *DesiredConfig {
+	c.desiredMu.Lock()
+	defer c.desiredMu.Unlock()
+	return c.o.Desired
+}
+
+// SetDesired replaces the config re-pushed after a device reset or config drift
+// (nil = none). It does not push anything itself; use Push for that.
+func (c *Client) SetDesired(d *DesiredConfig) {
+	c.desiredMu.Lock()
+	c.o.Desired = d
+	c.desiredMu.Unlock()
 }
 
 // Push applies a desired config in doc 03 §7 order and returns the final readback.
@@ -399,7 +416,7 @@ func (c *Client) Counters() HostCounters {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	h := c.counters
-	h.Decoder = c.dec.Stats()
+	h.Decoder = c.decStats
 	return h
 }
 
@@ -646,6 +663,10 @@ func (c *Client) readLoop() {
 		n, err := c.rw.Read(buf)
 		if n > 0 {
 			c.dec.Feed(buf[:n], c.dispatch)
+			st := c.dec.Stats() // the decoder belongs to this goroutine; Counters reads the copy
+			c.mu.Lock()
+			c.decStats = st
+			c.mu.Unlock()
 		}
 		if err != nil {
 			select {
@@ -776,8 +797,8 @@ func (c *Client) onDrift() {
 		return
 	}
 	c.emit(EventConfigDrift{Old: old, New: cfg})
-	if c.o.Desired != nil {
-		if cfg, err = c.Push(ctx, *c.o.Desired); err == nil {
+	if d := c.desired(); d != nil {
+		if cfg, err = c.Push(ctx, *d); err == nil {
 			c.emit(EventRepushed{Config: cfg})
 		}
 	}
@@ -800,8 +821,8 @@ func (c *Client) onReset() {
 	if _, err := c.GetConfig(ctx); err != nil {
 		return
 	}
-	if c.o.Desired != nil {
-		if cfg, err := c.Push(ctx, *c.o.Desired); err == nil {
+	if d := c.desired(); d != nil {
+		if cfg, err := c.Push(ctx, *d); err == nil {
 			c.emit(EventRepushed{Config: cfg})
 		}
 	}
