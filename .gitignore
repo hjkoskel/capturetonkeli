@@ -31,3 +31,4 @@ firmware/build-check/
 firmware/build-repro/
 version.json
 __pycache__/
+/examples/fpvview/fpvview

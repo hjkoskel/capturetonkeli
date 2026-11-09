@@ -17,7 +17,7 @@ CC_HOST    ?= cc
 
 CORE_SRC   := firmware/components/ctp_core
 
-.PHONY: sw-version bundle-check fw-legal-check fw-check-build fw-release-build serve-https js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
+.PHONY: fpvview sw-version bundle-check fw-legal-check fw-check-build fw-release-build serve-https js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
         hil ci lint go-test vectors ctpbench release serve doctor clean
 
 help:
@@ -45,6 +45,10 @@ ctpbench:
 
 vectors:
 	go generate ./...
+
+# Example viewer (examples/fpvview, own Go module with raylib; not part of ci)
+fpvview:
+	cd examples/fpvview && go vet . && go test -count=1 . && go build -o fpvview .
 
 js-test:
 	node --test 'test/js/*.test.mjs'

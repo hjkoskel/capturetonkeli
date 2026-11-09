@@ -351,4 +351,8 @@ All receivers take a captured 802.11 frame without FCS (`Packet.Data`, `Frame.Da
 - RTP from `OnRTP` → `video.NewDepacketizer(video.Auto, onAU)` → `video.MP4Files` or a raw Annex B file.
 - Telemetry from `OnTelemetry` → `mavlink.Parse` → `FlightState.Add`.
 - `hxfpv.NewReceiver(hxfpv.Options{OnFrame})` delivers whole JPEG frames.
-- Not in the library: UDP forwarding (RTP to 5600, MAVLink to 14550, doc 13 §10.5) and decoding video. They belong in a CLI on top of these packages.
+- `video.NewRecorder(path)` records access units as they arrive: `.mp4` (spooled to `path.part`, assembled moov-first on SPS change / Close, so memory does not grow) or raw `.h264/.h265`.
+- Not in the library: UDP forwarding (RTP to 5600, MAVLink to 14550, doc 13 §10.5) and decoding video. They belong in programs on top of these packages.
+
+### 11.3 Example: `examples/fpvview`
+A viewer and recorder for OpenHD and hx-esp32-cam-fpv (README there): flags with the `flag` package, a raylib window (Alt+Enter full screen), ffmpeg for H.264/H.265 decoding, `-demo` and `-pcap` sources besides dongles. It is a **separate module** (`examples/fpvview/go.mod`, `replace` to the repo root) because it needs raylib-go; the library module stays stdlib-only, and `go test ./...` at the root does not include it. `make fpvview` builds it (not part of `make ci`: it needs cgo and OpenGL headers).

@@ -294,6 +294,7 @@ func durations(ts []uint32) []uint32 {
 
 type sample struct {
 	data []byte
+	size int
 	key  bool
 	ts   uint32
 }
@@ -301,13 +302,27 @@ type sample struct {
 type params struct{ vps, sps, pps []byte }
 
 func oneFile(codec string, samples []sample, p params, info SPSInfo) ([]byte, uint64, error) {
+	head, total, err := mp4Head(codec, samples, p, info)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := bytes.NewBuffer(head)
+	for _, s := range samples {
+		out.Write(s.data)
+	}
+	return out.Bytes(), total, nil
+}
+
+// mp4Head returns ftyp + moov + the mdat box header for samples whose data follows in
+// order (only size, key and ts are used). total = duration in 90 kHz ticks.
+func mp4Head(codec string, samples []sample, p params, info SPSInfo) ([]byte, uint64, error) {
 	var mdatLen uint64
 	sizes := make([]uint32, len(samples))
 	ts := make([]uint32, len(samples))
 	var keys []uint32
 	for i, s := range samples {
-		sizes[i] = uint32(len(s.data))
-		mdatLen += uint64(len(s.data))
+		sizes[i] = uint32(s.size)
+		mdatLen += uint64(s.size)
 		ts[i] = s.ts
 		if s.key {
 			keys = append(keys, uint32(i+1))
@@ -366,16 +381,10 @@ func oneFile(codec string, samples []sample, p params, info SPSInfo) ([]byte, ui
 	}
 	ftyp := box("ftyp", []byte("isom"), u32(0x200), []byte("isomiso2"+sampleType+"mp41"))
 	head := len(moov(0)) // stco is 32-bit: the size does not depend on the value
-	var out bytes.Buffer
-	out.Grow(len(ftyp) + head + 8 + int(mdatLen))
-	out.Write(ftyp)
-	out.Write(moov(uint32(len(ftyp) + head + 8)))
-	out.Write(u32(uint32(mdatLen + 8)))
-	out.WriteString("mdat")
-	for _, s := range samples {
-		out.Write(s.data)
-	}
-	return out.Bytes(), total, nil
+	out := append([]byte(nil), ftyp...)
+	out = append(out, moov(uint32(len(ftyp)+head+8))...)
+	out = append(out, u32(uint32(mdatLen+8))...)
+	return append(out, "mdat"...), total, nil
 }
 
 // MP4File is one finished recording.
@@ -455,7 +464,7 @@ func MP4Files(codec string, aus []AU) ([]MP4File, error) {
 			data = binary.BigEndian.AppendUint32(data, uint32(len(x)))
 			data = append(data, x...)
 		}
-		cur.samples = append(cur.samples, sample{data: data, key: au.Key, ts: au.TS})
+		cur.samples = append(cur.samples, sample{data: data, size: len(data), key: au.Key, ts: au.TS})
 	}
 	return files, finish()
 }
