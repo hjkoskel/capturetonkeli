@@ -11,7 +11,7 @@ References: doc 01 (transports), doc 02 (filters, radio, regulatory), doc 03 (pr
    - No frameworks, no libraries, no npm, no bundler, no transpiler, no build step, no CDN, no web fonts loaded from third parties.
    - No TypeScript, no JSX, no CSS preprocessors. JSDoc comments for types are allowed.
    - Only standard Web Platform APIs.
-2. **Hosting: GitHub Pages from the repository root** (`main`, folder `/`). The site lives under a sub-path (`https://<owner>.github.io/capturetonkeli/`), so **every URL is relative** and `.nojekyll` is present (doc 11 §2). `http://localhost` (`make serve`) for development. Web Serial and WebUSB require a secure context, so `file://` is not supported. No server-side code, no network calls after load except the update check of `fw/manifest.json` (same origin).
+2. **Hosting: GitHub Pages from the repository root** (`main`, folder `/`). The site lives under a sub-path (`https://<owner>.github.io/capturetonkeli/`), so **every URL is relative** and `.nojekyll` is present (doc 11 §2). `http://localhost` (`make serve`) for development. Web Serial and WebUSB require a secure context, so `file://` is not supported. No server-side code, no network calls after load except the update check of `fw/manifest.json` and `version.json` at startup (§19; both same origin).
 3. **Offline-capable and always latest:** a Service Worker precaches the app. Navigation and `fw/manifest.json` are network-first, and a new release shows a "Reload" banner, never an automatic reload during capture (doc 11 §3). There are no per-version URLs; users always run the latest page.
 4. **No telemetry, no external requests.** Captured data never leaves the device except through files the user saves.
 5. Files are plain ES modules (`<script type="module">`) plus one dedicated Worker. Each JS file has one responsibility (§2). Total size target < 200 KB uncompressed.
@@ -518,6 +518,16 @@ The page is an installable Progressive Web App (Chrome/Edge on desktop and Andro
 - **Mobile layout** (< 900 px): one-row top bar (the link text shrinks, the firmware badge shows only as a warning), packet list columns #, time, channel, RSSI, type; no pull-to-refresh (`overscroll-behavior: none`, a reload would end the capture); content kept clear of notches and gesture bars (`viewport-fit=cover` + `env(safe-area-inset-*)`).
 - **Keep the screen on** (js/wakelock.js, Screen Wake Lock API): by default while a dongle or the demo is connected (or reconnecting) or a recording runs; settings: always / never. A locked phone suspends the page and the dongle's watchdog stops the capture (§4), and FPV needs the screen anyway. The browser drops the lock when the page is hidden; it is taken again when visible. Refusals (battery saver) only log; the Settings tab says whether the screen is kept on.
 - iOS/iPadOS: installable as a home-screen bookmark, but without WebUSB/Web Serial only the demo works (§1).
+
+## 19. Version information
+
+The start page (below the buttons) and About show, and the log records at startup:
+- **Git version** from `version.json`: `Version <tag or git describe> · branch · commit <short> (date)`; "+ uncommitted changes" and "dev server" when served by `make serve`. `version.json` is never committed (a stamp in the commit would describe the previous commit): the Pages deploy writes it (`.github/workflows/pages.yml` → `tools/version_info.py --source pages`, branch from the workflow, tags via a full checkout), and the dev server generates it live from git. Other servers: "Version: unknown".
+- **UI files** = the service worker `VERSION` (hash of every precached file, docs/11 §3): identifies exactly the files that are running. From the running service worker (installed app, also offline) or from `sw.js`.
+- **Firmware bundle** version and build_id (fw/manifest.json), **installed app / browser tab**, **works offline / online only**.
+- The service worker caches `version.json` together with the files, so an installed app shows the version it is actually running, also offline.
+- *Copy* puts it on the clipboard with the browser's user agent (for bug reports).
+- Like fw/manifest.json, `version.json` is a same-origin request at load time (§0.2).
 
 ---
 

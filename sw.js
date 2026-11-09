@@ -3,11 +3,11 @@
 // Everything else: cache-first within one cache per version. VERSION is a hash of
 // every file in FILES (tools/sw_version.mjs, checked by make js-test), so any UI change
 // changes sw.js, the browser installs the new worker and the page offers "Reload".
-const VERSION = 'b4deb9e98bcb2370';
+const VERSION = 'c3e14639195c7b64';
 const FILES = ['./', 'index.html', 'css/app.css', 'favicon.svg', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'js/main.js', 'js/app.js', 'js/codec.js', 'js/wire.js',
   'js/filter.js', 'js/semver.js', 'js/dot11.js', 'js/pcapng.js', 'js/protocol.js', 'js/errors.js', 'js/transport.js', 'js/demo-device.js',
   'js/worker.js', 'js/display-filter.js', 'js/regdom.js', 'js/settings.js', 'js/log.js', 'js/ui/dom.js', 'js/ui/radio.js', 'js/ui/filterpanel.js',
-  'js/ui/stats.js', 'js/ui/device.js', 'js/ui/logpanel.js', 'js/ui/settingspanel.js', 'js/ui/packets.js', 'js/romflash.js', 'js/flasher.js', 'js/hxfec.js', 'js/hxfpv.js', 'js/hxdemo.js', 'js/ui/fpv.js', 'js/ohdcrypto.js', 'js/ohdfec.js', 'js/openhd.js', 'js/ohdkeys.js', 'js/ohdkeys-worker.js', 'js/mavlink.js', 'js/mavlink-crc.js', 'js/rtp.js', 'js/ohddemo.js', 'js/ui/openhd.js', 'js/ui/flip.js', 'js/mp4.js', 'js/wakelock.js', 'js/diversity.js', 'js/ui/group.js', 'fw/manifest.json'];
+  'js/ui/stats.js', 'js/ui/device.js', 'js/ui/logpanel.js', 'js/ui/settingspanel.js', 'js/ui/packets.js', 'js/romflash.js', 'js/flasher.js', 'js/hxfec.js', 'js/hxfpv.js', 'js/hxdemo.js', 'js/ui/fpv.js', 'js/ohdcrypto.js', 'js/ohdfec.js', 'js/openhd.js', 'js/ohdkeys.js', 'js/ohdkeys-worker.js', 'js/mavlink.js', 'js/mavlink-crc.js', 'js/rtp.js', 'js/ohddemo.js', 'js/ui/openhd.js', 'js/ui/flip.js', 'js/mp4.js', 'js/wakelock.js', 'js/diversity.js', 'js/ui/group.js', 'js/version.js', 'fw/manifest.json'];
 
 const CACHE = `ctk-${VERSION}`; // fw/manifest.json is in FILES, so a release changes VERSION too
 
@@ -16,6 +16,9 @@ self.addEventListener('install', (e) => {
     const c = await caches.open(CACHE);
     // bypass the HTTP cache so a new version never precaches stale files
     await c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })));
+    // git version of these files (written by the Pages deploy; absent elsewhere): cached with them,
+    // so the start page shows the version that is running, also offline (docs/04 §19)
+    await c.add(new Request('version.json', { cache: 'reload' })).catch(() => {});
   })());
 });
 
@@ -27,7 +30,10 @@ self.addEventListener('activate', (e) => {
 });
 
 // The page asks the waiting worker to take over when the user taps "Reload" (never automatically).
-self.addEventListener('message', (e) => { if (e.data?.t === 'skip-waiting') self.skipWaiting(); });
+self.addEventListener('message', (e) => {
+  if (e.data?.t === 'skip-waiting') self.skipWaiting();
+  if (e.data?.t === 'version') e.source?.postMessage({ t: 'version', version: VERSION });
+});
 
 const timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
 

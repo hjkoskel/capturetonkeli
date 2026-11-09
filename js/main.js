@@ -17,6 +17,7 @@ import { initSettings } from './ui/settingspanel.js';
 import { initPackets } from './ui/packets.js';
 import * as flasher from './flasher.js';
 import { initWakeLock } from './wakelock.js';
+import { versionInfo, versionLines } from './version.js';
 
 // ---- global error net: nothing fails silently -----------------------------------------
 window.addEventListener('error', (e) => internalError(e.error ?? e.message));
@@ -230,8 +231,21 @@ async function legalOk() {
   if (ok) settings.update((x) => { x.acceptedLegal = true; });
   return ok;
 }
+// ---- version (docs/04 §19): start page, About, log ------------------------------------------------
+let versionText = ['Version: …', ''];
+async function showVersion() {
+  versionText = versionLines(await versionInfo(app.manifest));
+  $('#version-head').textContent = versionText[0];
+  $('#version-detail').textContent = versionText[1];
+  log('info', `${versionText[0]} · ${versionText[1]}`, 'page');
+}
+$('#version-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(`capturetonkeli ${versionText.join('\n')}\n${navigator.userAgent}`); toast('Version information copied'); } catch (e) { toast(`Copy failed: ${e.message}`); }
+};
+
 function showAbout() {
   dialog('About capturetonkeli', [
+    h('p.small', versionText[0], h('br'), versionText[1]),
     `Web UI for the XIAO ESP32-C5 capture dongle. Protocol CTP v${W.PROTO_VER}. Page firmware bundle: ${app.manifest ? app.manifest.version : 'none (development page)'}.`,
     'Receive-only: the dongle never transmits. Capture only networks you own or are authorised to test.',
     h('p', h('a', { href: 'docs/04-web-ui-spec.md' }, 'Specification'), ' · ', h('a', { href: 'docs/03-usb-link-protocol.md' }, 'Protocol')),
@@ -269,7 +283,7 @@ initLog($('#panel-log'));
 initSettings($('#panel-settings'), { applyTheme });
 initPackets();
 initWakeLock();
-app.loadManifest();
+app.loadManifest().then(showVersion);
 offerKnown();
 log('info', `Page loaded (${navigator.userAgent})`, 'page');
 
