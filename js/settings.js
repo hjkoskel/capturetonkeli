@@ -15,7 +15,7 @@ export function defaults() {
     autoCapture: true, autoReconnect: true, transport: 'auto', storeSize: 200000, timeFormat: 'rel', theme: 'auto', colors: true,
     recName: 'capture_{date}_ch{ch}.pcapng', recFiltered: false, pingInterval: 500, logLevel: 'info', showRaw: false,
     savedFilters: {}, acceptedLegal: false, dontAskFw: {}, fpvChannel: 7, fpvKeep: 8, fpvPrevFilter: null, fpvSystem: 'hx', fpvFlip: 'none',
-    ohdChannel: 149, ohdBw: 20, ohdFollow: true, ohdGround: false, ohdKeys: null, ohdUnverified: false, ohdQueue: 1, ohdGapped: false, ohdCodec: 'auto', ohdFlip: 'none', ohdPrevFilter: null,
+    ohdChannel: 149, ohdBw: 20, ohdFollow: true, ohdGround: false, ohdKeys: null, ohdUnverified: false, ohdQueue: 1, ohdGapped: false, ohdCodec: 'auto', ohdFlip: 'none', ohdRecFormat: 'mp4', ohdPrevFilter: null,
   };
 }
 

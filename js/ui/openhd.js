@@ -92,6 +92,9 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
   const camSel = h('select.small', { 'aria-label': 'Camera', onchange: () => { cam = Number(camSel.value); resetDecoder(); sendView(); } }, h('option', { value: 0 }, 'primary camera'), h('option', { value: 1 }, 'secondary camera'));
   const flip = flipControl(canvas, 'ohdFlip');
   const recVideoBtn = h('button.small', { onclick: () => toggleRec('video') }, 'Record video');
+  const recFmtSel = h('select.small', { 'aria-label': 'Video recording format', title: 'MP4 has timestamps and plays in any player. Raw is the bare H.264/H.265 stream (players must be told the frame rate).', onchange: () => settings.update((x) => { x.ohdRecFormat = recFmtSel.value; }) },
+    h('option', { value: 'mp4' }, 'MP4'), h('option', { value: 'raw' }, 'raw .h264/.h265'));
+  recFmtSel.value = s.ohdRecFormat === 'raw' ? 'raw' : 'mp4';
   const recTlogBtn = h('button.small', { onclick: () => toggleRec('tlog') }, 'Record telemetry (.tlog)');
   const recState = h('span.small.muted');
   const unitsBox = h('div'), linkT = h('table.stats-table'), flightT = h('table.stats-table'), ohdT = h('table.stats-table'), textsBox = h('div.small.mono'), msgBox = h('div.small'), hints = h('div');
@@ -116,7 +119,7 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
     slot,
     h('div.row', largeBtn, h('button.small', { onclick: fullscreen }, 'Fullscreen'), h('button.small', { onclick: snapshot }, 'Snapshot'), pauseBtn, camSel, flip.el,
       h('button.small', { onclick: () => { app.post({ t: 'ohd-reset' }); resetDecoder(); toast('OpenHD receiver reset'); } }, 'Reset')),
-    h('div.row', recVideoBtn, recTlogBtn, recState),
+    h('div.row', recVideoBtn, recFmtSel, recTlogBtn, recState),
     hints,
     h('h3', 'Air units'), unitsBox,
     h('h3', 'Link (shown unit)'), linkT,
@@ -314,16 +317,19 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
     const next = { ...recOn, [kind]: !recOn[kind] };
     app.post({ t: 'ohd-rec-stop' }); // files of the previous selection are delivered first
     recOn = next;
-    if (next.video || next.tlog) app.post({ t: 'ohd-rec-start', video: next.video, tlog: next.tlog });
+    if (next.video || next.tlog) app.post({ t: 'ohd-rec-start', video: next.video, tlog: next.tlog, format: recFmtSel.value });
+    recFmtSel.disabled = !!next.video;
     recVideoBtn.textContent = recOn.video ? 'Stop video recording' : 'Record video';
     recTlogBtn.textContent = recOn.tlog ? 'Stop telemetry recording' : 'Record telemetry (.tlog)';
   }
   app.addEventListener('ohd-rec-data', (e) => {
     const d = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    for (const f of e.detail.files) {
-      if (f.kind === 'video') download(`openhd_${d}.${f.codec === 'h265' ? 'h265' : 'h264'}`, new Blob(f.parts));
+    const videos = e.detail.files.filter((f) => f.kind === 'video');
+    e.detail.files.forEach((f) => {
+      if (f.kind === 'note') toast(f.text, 6000);
+      else if (f.kind === 'video') download(`openhd_${d}${videos.length > 1 ? `_${videos.indexOf(f) + 1}` : ''}.${f.ext}`, new Blob(f.parts, { type: f.ext === 'mp4' ? 'video/mp4' : 'application/octet-stream' }));
       else download(`openhd_${d}.tlog`, new Blob(f.parts));
-    }
+    });
   });
 
   // ---------------- stats / telemetry ----------------
