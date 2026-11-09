@@ -22,7 +22,7 @@ const MUL = new Uint8Array(65536);
 for (let a = 1; a < 256; a++) for (let b = 1; b < 256; b++) MUL[(a << 8) | b] = exp[log[a] + log[b]];
 
 export const mul = (a, b) => MUL[(a << 8) | b];
-function inv(a) { if (!a) throw new Error('GF(256): inverse of 0'); return exp[255 - log[a]]; }
+export function inv(a) { if (!a) throw new Error('GF(256): inverse of 0'); return exp[255 - log[a]]; }
 
 /** Gauss-Jordan inverse of a k×k matrix (Uint8Array, row-major). Throws if singular. */
 export function invert(m, k) {

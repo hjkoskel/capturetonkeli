@@ -6,11 +6,33 @@ import { encode as encodeFilter } from '../filter.js';
 import { crc32 } from '../codec.js';
 import { captureFilter, RESOLUTIONS, RATES } from '../hxfpv.js';
 import { h, inline, toast, download, fmtNum, fmtBytes, messageEl } from './dom.js';
+import { initOpenhd } from './openhd.js';
 
 const hex4 = (n) => `0x${n.toString(16).toUpperCase().padStart(4, '0')}`;
 const pct = (a, b) => (b ? `${((100 * a) / b).toFixed(1)} %` : '–');
 
-export function initFpv(root) {
+/** FPV tab: system switch (hx-esp32-cam-fpv / OpenHD), one viewer each. */
+export function initFpvTab(panel) {
+  let current = settings.get().fpvSystem === 'openhd' ? 'openhd' : 'hx';
+  const hxRoot = h('div'), ohdRoot = h('div');
+  const seg = (v, label) => h('button.small.seg', { 'data-v': v, onclick: () => select(v) }, label);
+  const bar = h('div.row.fpv-system', { role: 'group', 'aria-label': 'FPV system' }, h('span.small.muted', 'System'), seg('hx', 'hx-esp32-cam-fpv'), seg('openhd', 'OpenHD'));
+  panel.append(bar, hxRoot, ohdRoot);
+  const vis = (which) => () => !panel.classList.contains('hidden') && current === which;
+  const views = { hx: initFpv(hxRoot, { isVisible: vis('hx') }), openhd: initOpenhd(ohdRoot, { isVisible: vis('openhd') }) };
+  function select(v) {
+    current = v;
+    settings.update((x) => { x.fpvSystem = v; });
+    hxRoot.classList.toggle('hidden', v !== 'hx');
+    ohdRoot.classList.toggle('hidden', v !== 'openhd');
+    for (const b of bar.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === v));
+    for (const [k, view] of Object.entries(views)) { if (k !== v) view.setLarge(false); view.checkVisible(); }
+  }
+  new MutationObserver(() => { for (const view of Object.values(views)) view.checkVisible(); }).observe(panel, { attributes: true, attributeFilter: ['class'] });
+  select(current);
+}
+
+export function initFpv(root, { isVisible }) {
   const s = settings.get();
   const chIn = h('input', { type: 'number', min: 1, max: 177, value: s.fpvChannel ?? 7, style: { width: '5em' }, 'aria-label': 'FPV channel' });
   const keepSel = h('select', { 'aria-label': 'FEC packets kept', onchange: () => settings.update((x) => { x.fpvKeep = Number(keepSel.value); }) },
@@ -24,7 +46,7 @@ export function initFpv(root) {
   const video = h('div.fpv-video', canvas, osdTxt);
   const slot = h('div', video);
   const stage = h('section.fpv-stage', { 'aria-label': 'FPV video (large)' });
-  const largeBtn = h('button.small.fpv-large-btn', { onclick: toggleLarge }, 'Large view');
+  const largeBtn = h('button.small.fpv-large-btn', { onclick: () => setLarge(!large) }, 'Large view');
   const pauseBtn = h('button.small', { onclick: togglePause }, 'Pause');
   const unitsBox = h('div'), statsT = h('table.stats-table'), airT = h('table.stats-table'), hints = h('div');
 
@@ -53,19 +75,20 @@ export function initFpv(root) {
   // ---- worker view control: frames are only sent while this panel (or fullscreen) is visible ----
   function sendView() { app.post({ t: 'fpv-view', on: visible && !paused, unit: shown }); }
   function checkVisible() {
-    const v = large || !root.classList.contains('hidden') || !!document.fullscreenElement;
+    const v = large || isVisible() || document.fullscreenElement === video;
     if (v !== visible) { visible = v; sendView(); }
   }
-  new MutationObserver(checkVisible).observe(root, { attributes: true, attributeFilter: ['class'] });
   document.addEventListener('fullscreenchange', checkVisible);
   document.querySelector('#app').append(stage);
   checkVisible();
   sendView();
 
   // Large view: the video takes the place of the packet list (desktop layout).
-  function toggleLarge() {
-    large = !large;
+  function setLarge(on) {
+    if (on === large) return;
+    large = on;
     (large ? stage : slot).append(video);
+    stage.classList.toggle('on', large);
     document.querySelector('#app').classList.toggle('fpv-large', large);
     largeBtn.textContent = large ? 'Back to packet list' : 'Large view';
     checkVisible();
@@ -220,5 +243,5 @@ export function initFpv(root) {
     if (host?.hxErrors) list.push({ level: 'error', title: 'FPV decoder error', text: host.hxLastError, actions: ['Reset decoder; if it repeats, export the capture (pcapng) and report it.'] });
     hints.replaceChildren(...list.map((d) => messageEl(d)));
   }
+  return { setLarge, checkVisible };
 }
-
