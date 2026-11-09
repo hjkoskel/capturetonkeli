@@ -17,7 +17,7 @@ CC_HOST    ?= cc
 
 CORE_SRC   := firmware/components/ctp_core
 
-.PHONY: bundle-check fw-legal-check fw-check-build fw-release-build serve-https js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
+.PHONY: sw-version bundle-check fw-legal-check fw-check-build fw-release-build serve-https js-test fw-diag flash-diag fw-synth flash-synth flash-esptool help host-test fuzz-short diff-test fw-host fw-host-conf fw fw-smoke flash flash-container \
         hil ci lint go-test vectors ctpbench release serve doctor clean
 
 help:
@@ -48,6 +48,11 @@ vectors:
 
 js-test:
 	node --test 'test/js/*.test.mjs'
+
+# Service worker cache version = hash of the precached web files (docs/11 §3). Run after
+# any change to index.html, css/, js/, icons, the manifest or fw/ (js-test checks it).
+sw-version:
+	node tools/sw_version.mjs
 
 go-test:
 	go vet ./...
@@ -207,6 +212,7 @@ release: host-test go-test js-test
 	CTK_RELEASE_VERSION=$(VERSION) $(MAKE) --no-print-directory fw-release-build
 	go run ./cmd/ctpbench fw bundle --build firmware/build-release --out fw
 	cp $(FW_LEGAL) fw/
+	node tools/sw_version.mjs
 	go build -o $(CTPBENCH) ./cmd/ctpbench
 	@echo "release $(VERSION) bundled into fw/: review, commit, open a PR"
 

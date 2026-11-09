@@ -16,8 +16,9 @@ This doc is normative for repo layout, hosting and release. It supersedes the la
 ├── index.html                 web UI entry (doc 04)
 ├── .nojekyll                  disable Jekyll so every file is served as-is
 ├── sw.js                      Service Worker (must sit at root to control the whole site)
-├── manifest.webmanifest       PWA manifest (start_url "./", scope "./")
+├── manifest.webmanifest       PWA manifest (start_url "./", scope "./"; doc 04 §18)
 ├── favicon.svg
+├── icons/                     PWA icons + install-dialog screenshots (tools/make_icons.sh, tools/pwa_screenshots.mjs)
 ├── css/  js/                  web UI (vanilla, no build step)
 ├── fw/                        CURRENT release firmware bundle
 │   ├── manifest.json          version, build_id, protocol_ver, idf, parts+offsets+sha256 (doc 04 §11.1)
@@ -57,10 +58,10 @@ This doc is normative for repo layout, hosting and release. It supersedes the la
 
 Cache-first forever would pin users to an old UI. Policy:
 - **Precache list** (`sw.js` constant): index.html, css, js, fw/* files.
-- **The cache name includes the release build_id** (read from `fw/manifest.json` at SW install), so every release gets a fresh cache.
+- **The cache name is `ctk-<VERSION>`**, where `VERSION` in sw.js is a hash of every precached file (fw/manifest.json included, so a release changes it too). `make sw-version` (tools/sw_version.mjs) updates it; `make js-test` fails when it is stale; `make release` runs it. So any UI change changes sw.js, and the browser installs the new worker. (Until 2026-11 the name used the build_id only, so UI-only changes were not picked up without Ctrl+Shift+R.)
 - **Navigation and `fw/manifest.json`: network-first** with a 3 s timeout, falling back to the cache (offline/field use).
 - Everything else: cache-first within the current release cache.
-- **Update detection:** on page load and every 30 min the page fetches `fw/manifest.json` (network-first). If the build_id differs from the running page's, the new SW installs in the background and the page shows a banner: "New version 1.4.0 available – Reload". **Never reload automatically while capturing or recording**; when idle (not connected) it reloads on the next tap of Connect.
+- **Update detection:** the browser checks sw.js on every navigation; the page also calls `registration.update()` every 30 min and whenever it becomes visible (an installed app stays open for days). A new worker installs its cache in the background and waits; the page shows the banner "A new version of the app is ready – Reload". Tapping Reload tells the waiting worker to take over (`skip-waiting`) and reloads. **Never reload automatically**; Reload is refused while recording.
 - **Firmware pairing follows the page:** the page's own `fw/manifest.json` defines "expected firmware". A user who reloads to the latest page is then offered the matching firmware on the next connect (doc 04 §4.1).
 - **Old dongle (common case):** dongle MAJOR.MINOR < page → dialog with **Update** as the default button.
 - **Newer dongle** (developer with a dev build): dialog offers Continue (unsupported) or "Install release firmware 1.4.0" (a downgrade, flow A with differential write).

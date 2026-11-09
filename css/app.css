@@ -21,6 +21,9 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); }
+/* installed app / phones: no pull-to-refresh reload in the middle of a capture; keep clear of notches and gesture bars */
+html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+body { padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0); }
 body { display: flex; flex-direction: column; overflow: hidden; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button {
@@ -216,11 +219,19 @@ main#app.fpv-large .packets, main#app.fpv-large .detail { display: none; }
   .hexdump { overflow-x: auto; font-size: 11px; }
   button { min-height: 44px; }
   .chgrid button { min-height: 44px; }
-  .grid-head, .prow { grid-template-columns: 50px 60px 30px 40px 1fr; }
-  .grid-head span:nth-child(n+6):not(:nth-child(7)), .prow > span:nth-child(n+6):not(:nth-child(7)) { display: none; }
+  /* phone: #, time, channel, RSSI, type (the other columns are in the packet detail) */
+  .grid-head, .prow { grid-template-columns: 46px 72px 28px 56px 1fr; }
+  .grid-head span:nth-child(n+5):not(:nth-child(7)), .prow > span:nth-child(n+5):not(:nth-child(7)) { display: none; }
   .prow { height: 32px; }
   :root { --row: 32px; }
-  .topbar { gap: 6px; }
+  /* one row: the link text shrinks with an ellipsis, the firmware badge only shows when it warns */
+  .topbar { gap: 6px; flex-wrap: nowrap; padding: 4px 6px; }
+  .topbar button { padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+  .topbar .link { min-width: 0; flex: 0 1 auto; white-space: nowrap; }
+  #link-text { overflow: hidden; text-overflow: ellipsis; }
+  #fw-badge:not(.warn) { display: none; }
+  #fw-badge { min-width: 0; flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar > button, .dot { flex-shrink: 0; }
   #link-rtt, .brand { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

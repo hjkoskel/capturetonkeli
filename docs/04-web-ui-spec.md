@@ -504,6 +504,19 @@ The About menu also shows app version, protocol version and a link to the projec
 - Respect `prefers-reduced-motion`.
 - All text in English v1. Strings are kept in one `strings.js` object so a Finnish translation can be added without code changes.
 
+## 18. Installable app (PWA)
+
+The page is an installable Progressive Web App (Chrome/Edge on desktop and Android; on Android it then opens full screen from the home screen, which suits USB-OTG field use).
+
+- **Manifest** (`manifest.webmanifest`): `id`/`start_url`/`scope` `./`, `display: standalone`, `orientation: any`, `launch_handler: focus-existing` (one window owns the USB device; a second launch focuses it). Icons: favicon.svg (any), 192/512 PNG (any), 512 PNG maskable (logo inside the 80 % safe zone), Apple touch icon. Screenshots (narrow: packet list and OpenHD FPV; wide: packet list + detail) for the richer install dialog. Shortcut "Demo" → `./#demo`.
+- **Regenerating:** `tools/make_icons.sh` (icons from favicon.svg and icons/maskable.svg) and `node tools/pwa_screenshots.mjs` (screenshots from demo mode); both use headless Chromium. Then `make sw-version`.
+- **Install button:** when the browser fires `beforeinstallprompt`, "Install as app" appears in the ⋮ menu and on the start screen; hidden when already running standalone. Elsewhere: browser menu → Install / Add to Home screen.
+- **`#demo`** in the URL (shortcut, link) starts demo mode; via `launchQueue` too when the app is already open.
+- **Offline:** the service worker precaches every web file (docs/11 §3); the installed app starts without network, demo mode included. Firmware images (`fw/*.bin`) are not precached; flashing needs the network once.
+- **Updates:** a new version shows the banner "A new version of the app is ready – Reload". Nothing reloads by itself; Reload is refused while recording. The app checks every 30 min and when it comes back to the front.
+- **Mobile layout** (< 900 px): one-row top bar (the link text shrinks, the firmware badge shows only as a warning), packet list columns #, time, channel, RSSI, type; no pull-to-refresh (`overscroll-behavior: none`, a reload would end the capture); content kept clear of notches and gesture bars (`viewport-fit=cover` + `env(safe-area-inset-*)`).
+- iOS/iPadOS: installable as a home-screen bookmark, but without WebUSB/Web Serial only the demo works (§1).
+
 ---
 
 ## 17. Protocol feature coverage matrix (acceptance checklist)
