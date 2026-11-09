@@ -160,6 +160,10 @@ canvas.spark { width: 100%; height: 90px; display: block; }
 .detail-cols { display: grid; grid-template-columns: minmax(260px, 1fr) auto; gap: 16px; }
 
 /* start screen */
+.caps { margin-top: 1.5em; line-height: 1.6; }
+.caps-list { list-style: none; padding: 0; margin: .3em 0; display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.caps-list li.yes > span:first-child { color: var(--ok, #1a7f37); }
+.caps-list li.no { color: var(--muted); }
 .version-info { margin-top: 2em; padding-top: .8em; border-top: 1px solid var(--border); line-height: 1.6; overflow-wrap: anywhere; }
 .start { position: absolute; inset: 0; z-index: 10; background: var(--bg); overflow: auto; padding: 8vh 6vw; }
 .start h1 { margin: 0 0 8px; color: var(--accent); }

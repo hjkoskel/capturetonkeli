@@ -3,7 +3,7 @@
 import { app } from './app.js';
 import { h, $, banner, clearBanner, dialog, toast, messageEl } from './ui/dom.js';
 import { unsupportedReason, describe } from './errors.js';
-import { SerialTransport, UsbTransport, pickTransport } from './transport.js';
+import { SerialTransport, UsbTransport, pickTransport, USB_FILTER } from './transport.js';
 import * as settings from './settings.js';
 import * as W from './wire.js';
 import { log, subscribe } from './log.js';
@@ -18,6 +18,7 @@ import { initPackets } from './ui/packets.js';
 import * as flasher from './flasher.js';
 import { initWakeLock } from './wakelock.js';
 import { versionInfo, versionLines } from './version.js';
+import { probe, setAndroidSerial } from './capabilities.js';
 
 // ---- global error net: nothing fails silently -----------------------------------------
 window.addEventListener('error', (e) => internalError(e.error ?? e.message));
@@ -231,6 +232,32 @@ async function legalOk() {
   if (ok) settings.update((x) => { x.acceptedLegal = true; });
   return ok;
 }
+// ---- browser capabilities (docs/04 §20): start page + log --------------------------------------------
+async function showCaps() {
+  const c = await probe();
+  const p = c.platform, t = c.transport;
+  const api = { serial: 'Web Serial', webusb: 'WebUSB' }[t.api] ?? 'no USB access';
+  const head = h('div', h('b', `This browser: ${p.name}${p.version ? ` ${p.version}` : ''}${p.os ? ` on ${p.os}` : ''}`),
+    ` · dongle via ${api}`, h('span.muted', ` (${t.why})`));
+  const list = h('ul.caps-list', ...c.items.map((x) => h(`li.${x.ok ? 'yes' : x.ok === false ? 'no' : 'maybe'}`,
+    h('span', { 'aria-hidden': 'true' }, x.ok ? '✓ ' : '✗ '), `${x.name}${x.ok ? '' : ' – not available'}`, x.text ? h('span.muted', ` (${x.text})`) : null)));
+  const test = p.android && navigator.serial && t.api !== 'serial' && settings.get().transport === 'auto'
+    ? h('p', h('button.small', { onclick: testSerial }, 'Test Web Serial'), h('span.muted', ' Plug the dongle in, press, and pick it if it is listed. If it is, Web Serial is used instead of WebUSB from then on.'))
+    : null;
+  $('#caps').replaceChildren(head, list, test ?? '');
+  log('info', `Browser: ${p.name} ${p.version ?? ''} ${p.os}; dongle via ${api} (${t.why}); ${c.items.map((x) => `${x.name} ${x.ok ? 'yes' : 'no'}${x.text ? ` (${x.text})` : ''}`).join(', ')}`, 'page');
+}
+async function testSerial() {
+  try {
+    const port = await navigator.serial.requestPort({ filters: [USB_FILTER] });
+    if (port.getInfo?.().usbVendorId) { setAndroidSerial('works'); toast('Web Serial reaches the dongle on this phone: it is used from now on', 5000); }
+  } catch (e) {
+    if (e.name === 'NotFoundError') { setAndroidSerial('none'); toast('No USB port picked: WebUSB stays in use. Test again with the dongle plugged in.', 5000); } else toast(`Web Serial test failed: ${e.message}`, 5000);
+  }
+  showCaps();
+  offerKnown();
+}
+
 // ---- version (docs/04 §19): start page, About, log ------------------------------------------------
 let versionText = ['Version: …', ''];
 async function showVersion() {
@@ -284,6 +311,7 @@ initSettings($('#panel-settings'), { applyTheme });
 initPackets();
 initWakeLock();
 app.loadManifest().then(showVersion);
+showCaps();
 offerKnown();
 log('info', `Page loaded (${navigator.userAgent})`, 'page');
 

@@ -3,6 +3,7 @@
 // Control lines (DTR/RTS) are never changed: lowering RTS wedged the C5 ROM
 // and the OS default does not reset the app (docs/01 risk #1, M3).
 import { DemoDevice, DemoAir } from './demo-device.js';
+import { chooseTransport, androidSerialState, platform } from './capabilities.js';
 
 export const USB_FILTER = { usbVendorId: 0x303a, usbProductId: 0x1001 };
 
@@ -219,12 +220,9 @@ export class DemoTransport extends Base {
 }
 DemoTransport.current = new Map();
 
-/** auto: Web Serial on desktop, WebUSB on Android (docs/04 §1). */
+/** auto: Web Serial on desktop; on Android Web Serial once it has shown a USB port, else WebUSB (docs/04 §1, js/capabilities.js). */
 export function pickTransport(pref = 'auto') {
-  const android = /Android/i.test(navigator.userAgent);
-  if (pref === 'webusb') return UsbTransport;
-  if (pref === 'serial') return SerialTransport;
-  if (navigator.serial && !android) return SerialTransport;
-  if (navigator.usb) return UsbTransport;
-  return navigator.serial ? SerialTransport : null;
+  const p = platform();
+  const { api } = chooseTransport(pref, navigator, p.android ? androidSerialState(p) : 'untested');
+  return api === 'serial' ? SerialTransport : api === 'webusb' ? UsbTransport : null;
 }
