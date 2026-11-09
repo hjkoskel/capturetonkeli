@@ -42,7 +42,7 @@ Per air unit:
 - Warnings: snaplen cutting frames, dongle `drop_ring` increasing (USB full), wrong packet version, unit silent, decoder errors.
 
 ## 6. UI (js/ui/fpv.js)
-Tab "FPV", system "hx-esp32-cam-fpv" (the other system is OpenHD, docs/13): setup, video (canvas, overlay with unit, frame number, size, fps, FEC marker), Large view (video replaces the packet list on desktop), Fullscreen, Save JPEG, Pause, Reset decoder, air unit table (ID, GS ID, packets/s, RSSI, frames, last seen, selection), link statistics and air unit status. Frames are drawn with `createImageBitmap`; JPEG decode errors are counted, not fatal. Frames are only sent from the worker while the tab, the large view or fullscreen is visible.
+Tab "FPV", system "hx-esp32-cam-fpv" (the other system is OpenHD, docs/13): setup, video (canvas, overlay with unit, frame number, size, fps, FEC marker), Large view (video replaces the packet list on desktop), Fullscreen, Save JPEG, Pause, picture flip (none / rotate 180° / mirror / vertical for a camera mounted upside down; CSS transform done by the compositor, no per-frame cost, OSD stays upright; Save JPEG then re-encodes the flipped last frame, otherwise it saves the camera's JPEG untouched), Reset decoder, air unit table (ID, GS ID, packets/s, RSSI, frames, last seen, selection), link statistics and air unit status. Frames are drawn with `createImageBitmap`; JPEG decode errors are counted, not fatal. Frames are only sent from the worker while the tab, the large view or fullscreen is visible.
 
 ## 7. Demo mode
 js/hxdemo.js simulates air unit 0x1234 on channel 7: 15 fps animated test picture encoded to JPEG with OffscreenCanvas, OSD packets every 200 ms, k = 6, n = 12, 3 % random packet loss.

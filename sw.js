@@ -4,7 +4,7 @@
 const FILES = ['./', 'index.html', 'css/app.css', 'favicon.svg', 'manifest.webmanifest', 'js/main.js', 'js/app.js', 'js/codec.js', 'js/wire.js',
   'js/filter.js', 'js/semver.js', 'js/dot11.js', 'js/pcapng.js', 'js/protocol.js', 'js/errors.js', 'js/transport.js', 'js/demo-device.js',
   'js/worker.js', 'js/display-filter.js', 'js/regdom.js', 'js/settings.js', 'js/log.js', 'js/ui/dom.js', 'js/ui/radio.js', 'js/ui/filterpanel.js',
-  'js/ui/stats.js', 'js/ui/device.js', 'js/ui/logpanel.js', 'js/ui/settingspanel.js', 'js/ui/packets.js', 'js/romflash.js', 'js/flasher.js', 'js/hxfec.js', 'js/hxfpv.js', 'js/hxdemo.js', 'js/ui/fpv.js', 'js/ohdcrypto.js', 'js/ohdfec.js', 'js/openhd.js', 'js/ohdkeys.js', 'js/ohdkeys-worker.js', 'js/mavlink.js', 'js/mavlink-crc.js', 'js/rtp.js', 'js/ohddemo.js', 'js/ui/openhd.js', 'fw/manifest.json'];
+  'js/ui/stats.js', 'js/ui/device.js', 'js/ui/logpanel.js', 'js/ui/settingspanel.js', 'js/ui/packets.js', 'js/romflash.js', 'js/flasher.js', 'js/hxfec.js', 'js/hxfpv.js', 'js/hxdemo.js', 'js/ui/fpv.js', 'js/ohdcrypto.js', 'js/ohdfec.js', 'js/openhd.js', 'js/ohdkeys.js', 'js/ohdkeys-worker.js', 'js/mavlink.js', 'js/mavlink-crc.js', 'js/rtp.js', 'js/ohddemo.js', 'js/ui/openhd.js', 'js/ui/flip.js', 'js/mp4.js', 'fw/manifest.json'];
 
 async function buildId() {
   try { const r = await fetch('fw/manifest.json', { cache: 'no-cache' }); if (r.ok) return (await r.json()).build_id || 'dev'; } catch { /* offline */ }

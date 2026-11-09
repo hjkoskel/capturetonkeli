@@ -8,7 +8,9 @@ import { encode as encodeFilter } from '../filter.js';
 import { crc32 } from '../codec.js';
 import { captureFilter, isOhdFilter, DEFAULT_KEYS, RACE_BAND_MHZ, DEFAULT_FREQ, freqToChannel, ht40Plus } from '../openhd.js';
 import { keysFromKeyFile } from '../ohdkeys.js';
-import { BW } from '../wire.js';
+import { BW, channelFreq } from '../wire.js';
+import { COUNTRIES } from '../regdom.js';
+import { flipControl, flippedCanvas } from './flip.js';
 import { h, inline, toast, download, fmtNum, fmtBytes, messageEl } from './dom.js';
 
 const deg = (r) => (r * 180) / Math.PI;
@@ -16,14 +18,25 @@ const pct = (a, b) => (b ? `${((100 * a) / b).toFixed(1)} %` : '–');
 const GPS_FIX = ['no GPS', 'no fix', '2D', '3D', 'DGPS', 'RTK float', 'RTK fixed', 'static', 'PPP'];
 const SEVERITY = ['EMERG', 'ALERT', 'CRIT', 'ERROR', 'WARN', 'NOTICE', 'INFO', 'DEBUG'];
 const CAM_ENC = ['H.264', 'H.265', 'MJPEG'];
+const PRESETS = [...RACE_BAND_MHZ, 2452];
+// Channels the ESP32-C5 driver tunes to in some country (docs/02 §1): 2.4 GHz 1–14, 5 GHz union of the tables.
+const TUNABLE = [...Array.from({ length: 14 }, (_, i) => i + 1), ...new Set(Object.values(COUNTRIES).flatMap((c) => c.ch5))].sort((a, b) => a - b);
+/** MHz → { ch, exact } with ch = the nearest tunable channel (0 = outside 2.4/5 GHz). */
+function channelFor(mhz) {
+  if (!(mhz >= 2400 && mhz <= 2500) && !(mhz >= 5150 && mhz <= 5925)) return { ch: 0, exact: false };
+  const band = TUNABLE.filter((c) => (mhz < 3000 ? c <= 14 : c > 14));
+  const ch = band.reduce((a, c) => (Math.abs(channelFreq(c) - mhz) < Math.abs(channelFreq(a) - mhz) ? c : a));
+  return { ch, exact: channelFreq(ch) === mhz };
+}
 
 export function initOpenhd(root, { isVisible, onLargeChange }) {
   const s = settings.get();
   // ---------------- setup ----------------
   const freqSel = h('select', { 'aria-label': 'OpenHD frequency' },
-    [...RACE_BAND_MHZ, 2452].map((f) => h('option', { value: f }, `${f} MHz (ch ${freqToChannel(f)})${f === DEFAULT_FREQ ? ' – OpenHD default' : f === 2452 ? ' – 2.4 GHz default' : ''}`)),
-    h('option', { value: 0 }, 'Other channel…'));
-  const chIn = h('input', { type: 'number', min: 1, max: 177, style: { width: '5em' }, 'aria-label': 'Channel' });
+    PRESETS.map((f) => h('option', { value: f }, `${f} MHz (ch ${freqToChannel(f)})${f === DEFAULT_FREQ ? ' – OpenHD default' : f === 2452 ? ' – 2.4 GHz default' : ''}`)),
+    h('option', { value: 0 }, 'Custom frequency…'));
+  const freqIn = h('input', { type: 'number', min: 2412, max: 5885, step: 5, style: { width: '6em' }, 'aria-label': 'Frequency in MHz', oninput: drawFreqNote });
+  const freqUnit = h('span.small', 'MHz'), freqNote = h('span.small');
   const bwSel = h('select', { 'aria-label': 'Channel width' }, h('option', { value: 20 }, '20 MHz'), h('option', { value: 40 }, '40 MHz'));
   const followCb = h('input', { type: 'checkbox', checked: s.ohdFollow !== false, onchange: () => settings.update((x) => { x.ohdFollow = followCb.checked; }) });
   const groundCb = h('input', { type: 'checkbox', checked: !!s.ohdGround, onchange: () => settings.update((x) => { x.ohdGround = groundCb.checked; }) });
@@ -40,13 +53,32 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
   codecSel.value = s.ohdCodec ?? 'auto';
   const filterState = h('div.small'), setupMsg = h('div');
 
-  const ch0 = s.ohdChannel ?? freqToChannel(DEFAULT_FREQ);
-  const f0 = [...RACE_BAND_MHZ, 2452].find((f) => freqToChannel(f) === ch0);
-  freqSel.value = String(f0 ?? 0);
-  chIn.value = ch0;
-  chIn.classList.toggle('hidden', !!f0);
+  function showFreq(mhz, custom = false) {
+    const preset = !custom && PRESETS.includes(mhz);
+    freqSel.value = String(preset ? mhz : 0);
+    freqIn.value = mhz;
+    for (const el of [freqIn, freqUnit]) el.classList.toggle('hidden', preset);
+    drawFreqNote();
+  }
   bwSel.value = String(s.ohdBw ?? 20);
-  freqSel.addEventListener('change', () => { const f = Number(freqSel.value); chIn.classList.toggle('hidden', f !== 0); if (f) chIn.value = freqToChannel(f); });
+  freqSel.addEventListener('change', () => { const f = Number(freqSel.value); if (f) showFreq(f); else { showFreq(Number(freqIn.value) || DEFAULT_FREQ, true); freqIn.focus(); } });
+  function wantedMHz() { return Number(freqSel.value) || Number(freqIn.value); }
+  function region() {
+    const c = app.config?.country ?? settings.get().desired.country;
+    const base = COUNTRIES[c?.cc] ?? COUNTRIES['01'];
+    return c?.mode === 1 ? { cc: c.cc, schan: c.schan, nchan: c.nchan, ch5: base.ch5 } : { cc: c?.cc ?? '01', ...base };
+  }
+  function allowedHere(r, ch) { return ch <= 14 ? ch >= r.schan && ch < r.schan + r.nchan : r.ch5.includes(ch); }
+  function drawFreqNote() {
+    const mhz = wantedMHz(), { ch, exact } = channelFor(mhz), r = region();
+    if (!ch) { freqNote.className = 'small warn-text'; freqNote.textContent = 'Enter 2412–2484 or 5180–5885 MHz'; return; }
+    if (!exact) { freqNote.className = 'small warn-text'; freqNote.textContent = `not a Wi-Fi channel centre – nearest: ${channelFreq(ch)} MHz (ch ${ch})`; return; }
+    const ok = allowedHere(r, ch);
+    freqNote.className = ok ? 'small muted' : 'small warn-text';
+    freqNote.textContent = `= ch ${ch}${ok ? '' : ` – not enabled for country ${r.cc}; pick a country that allows it in the Radio tab`}`;
+  }
+
+  showFreq(channelFreq(s.ohdChannel ?? freqToChannel(DEFAULT_FREQ)) || DEFAULT_FREQ);
 
   // ---------------- video ----------------
   const canvas = h('canvas', { width: 640, height: 360, 'aria-label': 'OpenHD video' });
@@ -58,7 +90,11 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
   const largeBtn = h('button.small.fpv-large-btn', { onclick: () => setLarge(!large) }, 'Large view');
   const pauseBtn = h('button.small', { onclick: togglePause }, 'Pause');
   const camSel = h('select.small', { 'aria-label': 'Camera', onchange: () => { cam = Number(camSel.value); resetDecoder(); sendView(); } }, h('option', { value: 0 }, 'primary camera'), h('option', { value: 1 }, 'secondary camera'));
+  const flip = flipControl(canvas, 'ohdFlip');
   const recVideoBtn = h('button.small', { onclick: () => toggleRec('video') }, 'Record video');
+  const recFmtSel = h('select.small', { 'aria-label': 'Video recording format', title: 'MP4 has timestamps and plays in any player. Raw is the bare H.264/H.265 stream (players must be told the frame rate).', onchange: () => settings.update((x) => { x.ohdRecFormat = recFmtSel.value; }) },
+    h('option', { value: 'mp4' }, 'MP4'), h('option', { value: 'raw' }, 'raw .h264/.h265'));
+  recFmtSel.value = s.ohdRecFormat === 'raw' ? 'raw' : 'mp4';
   const recTlogBtn = h('button.small', { onclick: () => toggleRec('tlog') }, 'Record telemetry (.tlog)');
   const recState = h('span.small.muted');
   const unitsBox = h('div'), linkT = h('table.stats-table'), flightT = h('table.stats-table'), ohdT = h('table.stats-table'), textsBox = h('div.small.mono'), msgBox = h('div.small'), hints = h('div');
@@ -66,7 +102,8 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
   root.append(
     h('p.small.muted', 'Video and telemetry from OpenHD drones (2.5, 2.6 and 2.7). The dongle only listens: keep using your OpenHD ground station. For monitoring your own OpenHD system: telemetry is encrypted with your bind phrase.'),
     h('h3', 'Setup'),
-    h('div.row', 'Frequency ', freqSel, chIn, bwSel, h('button', { onclick: tune }, 'Tune dongle')),
+    h('div.row', 'Frequency ', freqSel, freqIn, freqUnit, bwSel, h('button', { onclick: tune }, 'Tune dongle')),
+    h('div.row', freqNote),
     h('div.row.small', h('label', followCb, ' Follow the air unit when it changes channel (needs the bind phrase)')),
     h('div.row', h('button', { onclick: applyFilter }, 'Use OpenHD capture filter'), h('button', { onclick: restoreFilter }, 'Restore previous filter')),
     h('div.row.small', h('label', groundCb, ' Also capture the ground station (session, uplink telemetry)')),
@@ -80,9 +117,9 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
       h('div.row.small', 'Codec ', codecSel)),
     h('h3', 'Video'),
     slot,
-    h('div.row', largeBtn, h('button.small', { onclick: fullscreen }, 'Fullscreen'), h('button.small', { onclick: snapshot }, 'Snapshot'), pauseBtn, camSel,
+    h('div.row', largeBtn, h('button.small', { onclick: fullscreen }, 'Fullscreen'), h('button.small', { onclick: snapshot }, 'Snapshot'), pauseBtn, camSel, flip.el,
       h('button.small', { onclick: () => { app.post({ t: 'ohd-reset' }); resetDecoder(); toast('OpenHD receiver reset'); } }, 'Reset')),
-    h('div.row', recVideoBtn, recTlogBtn, recState),
+    h('div.row', recVideoBtn, recFmtSel, recTlogBtn, recState),
     hints,
     h('h3', 'Air units'), unitsBox,
     h('h3', 'Link (shown unit)'), linkT,
@@ -134,9 +171,19 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
   sendOptions();
 
   // ---------------- dongle setup ----------------
-  function wantedChannel() { const f = Number(freqSel.value); return f ? freqToChannel(f) : Number(chIn.value); }
+  function wantedChannel() { return channelFor(wantedMHz()).ch; }
   async function tune(chArg, bwArg, quiet) {
-    const ch = typeof chArg === 'number' ? chArg : wantedChannel();
+    let ch = chArg;
+    if (typeof chArg !== 'number') {
+      const mhz = wantedMHz(), c = channelFor(mhz);
+      if (!c.exact) {
+        inline(setupMsg, c.ch
+          ? { level: 'warn', title: `${mhz} MHz is not a Wi-Fi channel centre`, text: `The ESP32-C5 radio tunes only to Wi-Fi channel centres (2.4 GHz: 5 MHz steps, 2412–2472 and 2484; 5 GHz: 20 MHz steps, 5180–5885). OpenHD also uses only these. Nearest: ${channelFreq(c.ch)} MHz (ch ${c.ch}).`, actions: [`Enter ${channelFreq(c.ch)} MHz.`] }
+          : { level: 'warn', title: 'Frequency out of range', text: 'The dongle receives 2412–2484 MHz and 5180–5885 MHz.', actions: [] });
+        return false;
+      }
+      ch = c.ch;
+    }
     const mhz = typeof bwArg === 'number' ? bwArg : Number(bwSel.value);
     const bw = mhz === 40 ? (ht40Plus(ch) ? BW.HT40_PLUS : BW.HT40_MINUS) : BW.HT20;
     settings.update((x) => { x.ohdChannel = ch; x.ohdBw = mhz; x.desired.channel = ch; x.desired.bw = bw; });
@@ -178,7 +225,7 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
       ...(cfg.snaplen ? [h('span.warn-text', ` · snaplen ${cfg.snaplen}: frames are cut, video cannot be decoded`)] : []),
       h('span', ` · capture ${cfg.captureOn ? 'on' : 'off'}`));
   }
-  app.addEventListener('config', drawFilterState);
+  app.addEventListener('config', () => { drawFilterState(); drawFreqNote(); });
   app.addEventListener('conn', drawFilterState);
   drawFilterState();
 
@@ -192,8 +239,7 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
     if (app.config.channel === ch && (app.config.bw ?? 0) === bwWanted) return;
     if (performance.now() - lastFollow < 5000) return;
     lastFollow = performance.now();
-    const f = [...RACE_BAND_MHZ, 2452].includes(u.mgmt.freq) ? u.mgmt.freq : 0;
-    freqSel.value = String(f); chIn.value = ch; chIn.classList.toggle('hidden', !!f); bwSel.value = String(mhz);
+    showFreq(channelFreq(ch)); bwSel.value = String(mhz);
     tune(ch, mhz, true).then((ok) => ok && toast(`Following the air unit to ${u.mgmt.freq} MHz (ch ${ch}, ${mhz} MHz)`, 4000));
   }
 
@@ -223,7 +269,7 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
   }
   function snapshot() {
     if (!frames) { toast('No frame yet'); return; }
-    canvas.toBlob((b) => b && download(`openhd_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`, b), 'image/png');
+    flippedCanvas(canvas, flip.value()).toBlob((b) => b && download(`openhd_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.png`, b), 'image/png');
   }
 
   // ---------------- WebCodecs decoding ----------------
@@ -271,16 +317,19 @@ export function initOpenhd(root, { isVisible, onLargeChange }) {
     const next = { ...recOn, [kind]: !recOn[kind] };
     app.post({ t: 'ohd-rec-stop' }); // files of the previous selection are delivered first
     recOn = next;
-    if (next.video || next.tlog) app.post({ t: 'ohd-rec-start', video: next.video, tlog: next.tlog });
+    if (next.video || next.tlog) app.post({ t: 'ohd-rec-start', video: next.video, tlog: next.tlog, format: recFmtSel.value });
+    recFmtSel.disabled = !!next.video;
     recVideoBtn.textContent = recOn.video ? 'Stop video recording' : 'Record video';
     recTlogBtn.textContent = recOn.tlog ? 'Stop telemetry recording' : 'Record telemetry (.tlog)';
   }
   app.addEventListener('ohd-rec-data', (e) => {
     const d = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    for (const f of e.detail.files) {
-      if (f.kind === 'video') download(`openhd_${d}.${f.codec === 'h265' ? 'h265' : 'h264'}`, new Blob(f.parts));
+    const videos = e.detail.files.filter((f) => f.kind === 'video');
+    e.detail.files.forEach((f) => {
+      if (f.kind === 'note') toast(f.text, 6000);
+      else if (f.kind === 'video') download(`openhd_${d}${videos.length > 1 ? `_${videos.indexOf(f) + 1}` : ''}.${f.ext}`, new Blob(f.parts, { type: f.ext === 'mp4' ? 'video/mp4' : 'application/octet-stream' }));
       else download(`openhd_${d}.tlog`, new Blob(f.parts));
-    }
+    });
   });
 
   // ---------------- stats / telemetry ----------------

@@ -190,6 +190,10 @@ main#app.fpv-large .fpv-stage.on .fpv-osd { font-size: 14px; }
 main#app.fpv-large .packets, main#app.fpv-large .detail { display: none; }
 .fpv-osd.fec { color: #ffd34d; }
 .fpv-video.wide { aspect-ratio: 16 / 9; }
+/* picture flip (OpenHD): compositor transform, no per-frame pixel work */
+.fpv-video canvas.flip-rot180 { transform: rotate(180deg); }
+.fpv-video canvas.flip-mirror { transform: scaleX(-1); }
+.fpv-video canvas.flip-vflip { transform: scaleY(-1); }
 .fpv-osd-bottom { top: auto; bottom: 4px; }
 .fpv-system { gap: 4px; margin-bottom: 6px; }
 .fpv-system .seg[aria-pressed="true"] { background: var(--accent, #2a6df4); color: #fff; border-color: transparent; }

@@ -12,6 +12,11 @@ import * as O from '../../js/openhd.js';
 import * as K from '../../js/ohdkeys.js';
 import * as M from '../../js/mavlink.js';
 import * as R from '../../js/rtp.js';
+import * as MP4 from '../../js/mp4.js';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import * as Flt from '../../js/filter.js';
 
 const fx = (n) => JSON.parse(readFileSync(new URL(`fixtures/${n}`, import.meta.url)));
@@ -210,6 +215,68 @@ test('RTP: GStreamer H.264/H.265 packets → the encoder\'s access units', () =>
   const d = new R.Depacketizer({ codec: 'h264', onAU: (a) => aus.push(a) });
   v.h264.rtp.forEach((p, i) => { if (i !== 3) d.push(hx(p)); });
   assert.ok(aus.some((a) => a.damaged));
+});
+
+function boxes(b, from = 0, to = b.length) { // top-level ISO BMFF boxes → {type: [start, end]}
+  const dv = new DataView(b.buffer, b.byteOffset), out = {};
+  for (let i = from; i + 8 <= to;) { const n = dv.getUint32(i), t = String.fromCharCode(...b.subarray(i + 4, i + 8)); out[t] = [i, i + n]; assert.ok(n >= 8, t); i += n; }
+  return out;
+}
+const cat = (parts) => { const o = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let i = 0; for (const p of parts) { o.set(p, i); i += p.length; } return o; };
+
+test('MP4: GStreamer H.264/H.265 access units → playable MP4 with RTP timing', () => {
+  const v = fx('ohd-rtp.json');
+  const tmp = mkdtempSync(join(tmpdir(), 'ctk-mp4-'));
+  try {
+    for (const c of ['h264', 'h265']) {
+      const aus = [];
+      const d = new R.Depacketizer({ onAU: (a) => aus.push(a) });
+      for (const p of v[c].rtp) d.push(hx(p));
+      const sps = R.splitAnnexB(aus[0].data).find((n) => (c === 'h264' ? (n[0] & 0x1f) === 7 : ((n[0] >> 1) & 0x3f) === 33));
+      const info = MP4.spsInfo(c, sps);
+      assert.equal(`${info.width}x${info.height}`, '320x240', c);
+      const files = MP4.mp4Files(c, aus);
+      assert.equal(files.length, 1);
+      assert.equal(files[0].frames, aus.length);
+      const f = cat(files[0].parts), top = boxes(f);
+      assert.deepEqual(Object.keys(top), ['ftyp', 'moov', 'mdat'], c);
+      // the stco offset points at the first sample: a 4-byte NAL length, not a start code
+      const mdatStart = top.mdat[0] + 8, dv = new DataView(f.buffer);
+      assert.equal(dv.getUint32(mdatStart) + 4 <= f.length - mdatStart, true);
+      const moov = f.subarray(top.moov[0], top.moov[1]), s = toHex(moov);
+      assert.ok(s.includes(toHex(new TextEncoder().encode(c === 'h264' ? 'avcC' : 'hvcC'))));
+      // independent check with ffprobe/ffmpeg when installed (CI may not have it)
+      const file = join(tmp, `t-${c}.mp4`);
+      writeFileSync(file, f);
+      const pr = spawnSync('ffprobe', ['-v', 'error', '-count_frames', '-show_entries', 'stream=codec_name,width,height,avg_frame_rate,nb_read_frames', '-of', 'compact=p=0:nk=1', file], { encoding: 'utf8' });
+      if (pr.error) continue;
+      assert.equal(pr.stderr, '', c);
+      const [codec, w, hh, rate, n] = pr.stdout.trim().split('|'), [rn, rd] = rate.split('/').map(Number);
+      assert.deepEqual([codec, w, hh, Number(n)], [c === 'h264' ? 'h264' : 'hevc', '320', '240', aus.length], c);
+      assert.ok(Math.abs(rn / rd - 30) < 0.1, `${c} frame rate ${rate}`); // GStreamer's RTP ticks alternate 2999/3000
+      const dec = spawnSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'null', '-'], { encoding: 'utf8' });
+      assert.equal(dec.stderr, '', c);
+    }
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('MP4: timing gaps, SPS change splits the file, no key frame → nothing', () => {
+  const v = fx('ohd-rtp.json');
+  const aus = [];
+  const d = new R.Depacketizer({ onAU: (a) => aus.push(a) });
+  for (const p of v.h264.rtp) d.push(hx(p));
+  // drop two frames: the timeline keeps the gap (stts carries the longer duration)
+  const lost = aus.filter((_, i) => i !== 4 && i !== 5);
+  const f = cat(MP4.mp4Files('h264', lost)[0].parts), s = toHex(f);
+  assert.ok(s.includes(toHex(new Uint8Array([0, 0, 0x23, 0x28]))), 'a 9000-tick (3 frame) sample duration');
+  // starting without a key frame: units are skipped until one arrives
+  assert.equal(MP4.mp4Files('h264', aus.filter((a) => !a.key)).length, 0);
+  // a different SPS (e.g. another resolution; here the last byte changed) starts a second file
+  const mod = aus.map((a) => ({ ...a }));
+  const k2 = mod.findIndex((a, i) => i > 0 && a.key);
+  const nals = R.splitAnnexB(mod[k2].data).map((n) => ((n[0] & 0x1f) === 7 ? Uint8Array.from(n, (x, i) => (i === n.length - 1 ? x ^ 1 : x)) : n));
+  mod[k2] = { ...mod[k2], data: cat(nals.flatMap((n) => [Uint8Array.of(0, 0, 0, 1), n])) };
+  assert.equal(MP4.mp4Files('h264', mod).length, 2);
 });
 
 test('MAVLink: CRC_EXTRA framing, v1, signing, truncation, tlog', () => {

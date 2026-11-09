@@ -10,6 +10,7 @@ import { Receiver as HxReceiver } from './hxfpv.js';
 import * as OHD from './openhd.js';
 import { Depacketizer } from './rtp.js';
 import * as MAV from './mavlink.js';
+import { mp4Files } from './mp4.js';
 
 let dec = new Decoder();
 let lastSeq = -1;
@@ -71,7 +72,7 @@ function hxPush(meta, data) {
 const ohdView = { on: false, unit: 'auto', cam: 0, codec: 'auto', inFlight: 0, needKey: true, waitSince: 0, sent: 0, skipped: 0, forced: 0 };
 const ohdFlight = new Map(); // unit id → MAV.FlightState
 const ohdDepack = new Map(); // `${unit}:${cam}` → Depacketizer
-let ohdRec = null;           // { video: {unit, cam, codec, parts, size, aus} | null, tlog: {parts, size, msgs} | null, started }
+let ohdRec = null;           // { video: {unit, cam, codec, format, parts: [{data,key,ts}], size, aus} | null, tlog: {parts, size, msgs} | null, started }
 let ohdShown = null;
 const ohd = new OHD.Receiver({
   now: () => performance.now(),
@@ -96,7 +97,7 @@ const ohd = new OHD.Receiver({
 function ohdAU(u, cam, au) {
   const r = ohdRec?.video;
   let recorded = false;
-  if (r && r.unit === u.id && r.cam === cam && (r.aus || au.key)) { r.parts.push(au.data); r.size += au.data.length; r.aus++; r.codec = au.codec; recorded = true; }
+  if (r && r.unit === u.id && r.cam === cam && (r.aus || au.key)) { r.parts.push({ data: au.data, key: au.key, ts: au.ts }); r.size += au.data.length; r.aus++; r.codec = au.codec; recorded = true; }
   if (!ohdView.on || u.id !== ohdShown || cam !== ohdView.cam) return;
   const now = performance.now();
   if (ohdView.inFlight > 20) { ohdView.needKey = true; ohdView.waitSince = now; }
@@ -141,7 +142,17 @@ function ohdSummary() {
 function ohdRecStop() {
   if (!ohdRec) return;
   const out = [];
-  if (ohdRec.video?.aus) out.push({ kind: 'video', codec: ohdRec.video.codec, unit: ohdRec.video.unit, parts: ohdRec.video.parts });
+  const v = ohdRec.video;
+  if (v?.aus) {
+    let done = false;
+    if (v.format === 'mp4') {
+      try {
+        for (const f of mp4Files(v.codec, v.parts)) out.push({ kind: 'video', ext: 'mp4', codec: v.codec, unit: v.unit, parts: f.parts, frames: f.frames, ms: f.ms });
+        done = out.length > 0;
+      } catch (e) { out.push({ kind: 'note', text: `MP4 could not be written (${e.message}); saved the raw stream instead.` }); }
+    }
+    if (!done) out.push({ kind: 'video', ext: v.codec === 'h265' ? 'h265' : 'h264', codec: v.codec, unit: v.unit, parts: v.parts.map((a) => a.data) });
+  }
   if (ohdRec.tlog?.msgs) out.push({ kind: 'tlog', parts: ohdRec.tlog.parts });
   ohdRec = null;
   self.postMessage({ t: 'ohd-rec-data', files: out });
@@ -373,7 +384,7 @@ self.onmessage = (e) => {
     case 'ohd-reset': ohd.reset(); ohdFlight.clear(); ohdDepack.clear(); ohdView.needKey = true; ohdView.inFlight = 0; ohdView.sent = ohdView.skipped = ohdView.forced = 0; break;
     case 'ohd-rec-start': {
       const unit = ohdShownUnit();
-      ohdRec = { started: performance.now(), video: m.video && unit !== null ? { unit, cam: ohdView.cam, codec: null, parts: [], size: 0, aus: 0 } : null, tlog: m.tlog ? { parts: [], size: 0, msgs: 0 } : null };
+      ohdRec = { started: performance.now(), video: m.video && unit !== null ? { unit, cam: ohdView.cam, codec: null, format: m.format === 'raw' ? 'raw' : 'mp4', parts: [], size: 0, aus: 0 } : null, tlog: m.tlog ? { parts: [], size: 0, msgs: 0 } : null };
       break;
     }
     case 'ohd-rec-stop': ohdRecStop(); break;
