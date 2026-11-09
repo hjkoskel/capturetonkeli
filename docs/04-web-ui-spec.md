@@ -26,11 +26,11 @@ References: doc 01 (transports), doc 02 (filters, radio, regulatory), doc 03 (pr
 | iOS / iPadOS, Safari (any OS), Android WebView | – | – | Not supported → show explanation page |
 
 **Transport selection (automatic, overridable in Settings):**
-- If `navigator.serial` exists and the platform is not Android → Web Serial.
-- Else if `navigator.usb` exists → WebUSB CDC shim.
-- Else → show the "unsupported browser" panel listing the supported browsers.
+- Not Android: `navigator.serial` → Web Serial; else `navigator.usb` → WebUSB CDC shim.
+- Android: Web Serial **once it has shown a USB port on this phone** (a granted port with a USB vendor id at load, or the start page's *Test Web Serial*: the dongle appears in the chooser); otherwise WebUSB. Chrome on Android has Web Serial since 148, but wired ports need Android's serial API, which exists only on some devices (docs/01); older builds list only Bluetooth ports. The result is stored per Chrome major version (`androidSerial`), so an update tests again. Logic: js/capabilities.js `chooseTransport`.
+- Neither → the "unsupported browser" panel listing the supported browsers.
 
-The settings menu offers a manual "Force WebUSB" toggle for debugging.
+Settings → Transport overrides this (auto / Web Serial / WebUSB).
 
 ---
 
@@ -518,6 +518,10 @@ The page is an installable Progressive Web App (Chrome/Edge on desktop and Andro
 - **Mobile layout** (< 900 px): one-row top bar (the link text shrinks, the firmware badge shows only as a warning), packet list columns #, time, channel, RSSI, type; no pull-to-refresh (`overscroll-behavior: none`, a reload would end the capture); content kept clear of notches and gesture bars (`viewport-fit=cover` + `env(safe-area-inset-*)`).
 - **Keep the screen on** (js/wakelock.js, Screen Wake Lock API): by default while a dongle or the demo is connected (or reconnecting) or a recording runs; settings: always / never. A locked phone suspends the page and the dongle's watchdog stops the capture (§4), and FPV needs the screen anyway. The browser drops the lock when the page is hidden; it is taken again when visible. Refusals (battery saver) only log; the Settings tab says whether the screen is kept on.
 - iOS/iPadOS: installable as a home-screen bookmark, but without WebUSB/Web Serial only the demo works (§1).
+
+## 20. Browser capabilities on the start page
+
+When the page loads, the start page shows (and the log records) what this browser can do, from js/capabilities.js `probe()`: browser, version and OS; **which API reaches the dongle and why** (§1); then ✓/✗ for Web Serial (on Android: USB ports works / none offered / untested), WebUSB (dongles already allowed), H.264 and H.265 decoding (WebCodecs `isConfigSupported`, OpenHD video), keep screen on (Wake Lock), offline/install (service worker, https only), and where recordings go (file / browser storage / memory). On Android, while Web Serial is present but unproven and Transport is auto, a *Test Web Serial* button opens the port chooser filtered on the dongle; picking it switches to Web Serial, an empty chooser keeps WebUSB.
 
 ## 19. Version information
 

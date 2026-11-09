@@ -33,7 +33,7 @@ export function initSettings(root, { applyTheme }) {
     chk('autoReconnect', ' Reconnect automatically when the link is lost'),
     sel('keepAwake', 'Keep the screen on', [['connected', 'While connected or recording'], ['always', 'Always while this page is open'], ['off', 'Never (the system decides)']], () => wake.refresh()),
     wakeNote,
-    sel('transport', 'Transport', [['auto', 'Auto (Web Serial on desktop, WebUSB on Android)'], ['serial', 'Web Serial'], ['webusb', 'WebUSB (CDC-ACM shim)']]),
+    sel('transport', 'Transport', [['auto', 'Auto (Web Serial; on Android WebUSB until Web Serial shows a USB port)'], ['serial', 'Web Serial'], ['webusb', 'WebUSB (CDC-ACM shim)']]),
     h('h3', 'Packet list'),
     num('storeSize', 'Packet store size (packets kept in memory)', 10000, 2000000, (v) => { app.post({ t: 'store-size', n: v }); toast('Packet store resized (list cleared)'); }),
     sel('timeFormat', 'Time column', [['rel', 'Relative to first packet'], ['abs', 'Host clock'], ['dev', 'Device µs']]),

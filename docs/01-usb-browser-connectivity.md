@@ -12,7 +12,7 @@
 | Win/macOS/Linux/ChromeOS – Chrome/Edge/Opera | **Web Serial** | Stable since Chromium 89 |
 | Desktop Firefox | **Web Serial** | Shipped in Firefox 151 (May 2026) |
 | Android – Chrome | **WebUSB** + own CDC-ACM layer in JS | Works: Chrome uses the Android USB host API (and can detach a kernel cdc_acm driver where a phone ships one, see doc 08 A2). Proven by projects talking to ESP32-C6 USJ this way |
-| Android – Chrome | Web Serial | Shipped in Chrome 148, but in practice lists only Bluetooth RFCOMM ports, not USB CDC devices → do not rely on it |
+| Android – Chrome | Web Serial | Shipped in Chrome 148. Wired ports go through Android's serial API, available on a limited set of devices from 2026 Q2 (Chromium blink-dev PSA); elsewhere it lists only Bluetooth RFCOMM ports. → **Probed per phone** (doc 04 §1, §20): used once it shows the dongle's USB port, WebUSB otherwise |
 | Desktop – WebUSB to CDC | ✗ | OS cdc-acm/usbser/AppleUSBCDC driver owns the interface; claimInterface fails |
 | iOS/iPadOS Safari | ✗ | WebKit rejects Web Serial/WebUSB |
 | Android WebView | ✗ | No WebUSB/Web Serial |
