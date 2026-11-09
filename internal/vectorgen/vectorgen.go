@@ -574,11 +574,12 @@ func genCountries() {
 
 func genPcapng() {
 	type tc struct {
-		Name    string       `json:"name"`
-		Meta    wire.PktMeta `json:"meta"`
-		Data    string       `json:"data_hex"`
-		Comment string       `json:"comment,omitempty"`
-		EPB     string       `json:"epb_hex"`
+		Name    string           `json:"name"`
+		Meta    wire.PktMeta     `json:"meta"`
+		Data    string           `json:"data_hex"`
+		Comment string           `json:"comment,omitempty"`
+		Ants    []pcapng.Antenna `json:"antennas,omitempty"`
+		EPB     string           `json:"epb_hex"`
 	}
 	var shb bytes.Buffer
 	_, err := pcapng.NewWriter(&shb, pcapng.WriterOptions{UserAppl: "capturetonkeli", Hardware: "XIAO ESP32-C5", Snaplen: 0})
@@ -588,16 +589,19 @@ func genPcapng() {
 		m       wire.PktMeta
 		data    []byte
 		comment string
+		ants    []pcapng.Antenna
 	}{
-		{"11g beacon full", wire.PktMeta{TsUS: 0x0102030405, Channel: 6, RSSI: -50, Noise: -95, Rate: 12, BBFormat: wire.BB11g, OrigLen: 6, CapLen: 6}, []byte{0x80, 0, 0, 0, 0xde, 0xad}, ""},
-		{"11b with comment", wire.PktMeta{TsUS: 7, Channel: 1, RSSI: -80, Noise: -96, Rate: 2, BBFormat: wire.BB11b, OrigLen: 3, CapLen: 3}, []byte{0x40, 0, 0}, "cfg_gen 8: ch 1 HT20"},
-		{"HT 5 GHz truncated", wire.PktMeta{TsUS: 1 << 40, Channel: 36, Flags: wire.PktTruncated | wire.Pkt5GHz, RSSI: -61, Noise: -97, Rate: 7, BBFormat: wire.BBHT, OrigLen: 1500, CapLen: 4}, []byte{0x88, 1, 2, 3}, ""},
-		{"no_fcs fcs_err rate unknown", wire.PktMeta{TsUS: 9, Channel: 13, Flags: wire.PktNoFCS | wire.PktFCSErr | wire.PktRateUnknown, RSSI: -88, Noise: -95, BBFormat: wire.BBHESU, OrigLen: 10, CapLen: 10}, []byte{0xd4, 0, 0, 0, 1, 2, 3, 4, 5, 6}, ""},
-		{"FCS at end", wire.PktMeta{TsUS: 10, Channel: 11, RSSI: -40, Noise: -95, Rate: 108, BBFormat: wire.BB11g, OrigLen: 8, CapLen: 8}, []byte{0xc4, 0, 0, 0, 0x11, 0x22, 0x33, 0x44}, ""},
+		{"11g beacon full", wire.PktMeta{TsUS: 0x0102030405, Channel: 6, RSSI: -50, Noise: -95, Rate: 12, BBFormat: wire.BB11g, OrigLen: 6, CapLen: 6}, []byte{0x80, 0, 0, 0, 0xde, 0xad}, "", nil},
+		{"11b with comment", wire.PktMeta{TsUS: 7, Channel: 1, RSSI: -80, Noise: -96, Rate: 2, BBFormat: wire.BB11b, OrigLen: 3, CapLen: 3}, []byte{0x40, 0, 0}, "cfg_gen 8: ch 1 HT20", nil},
+		{"HT 5 GHz truncated", wire.PktMeta{TsUS: 1 << 40, Channel: 36, Flags: wire.PktTruncated | wire.Pkt5GHz, RSSI: -61, Noise: -97, Rate: 7, BBFormat: wire.BBHT, OrigLen: 1500, CapLen: 4}, []byte{0x88, 1, 2, 3}, "", nil},
+		{"no_fcs fcs_err rate unknown", wire.PktMeta{TsUS: 9, Channel: 13, Flags: wire.PktNoFCS | wire.PktFCSErr | wire.PktRateUnknown, RSSI: -88, Noise: -95, BBFormat: wire.BBHESU, OrigLen: 10, CapLen: 10}, []byte{0xd4, 0, 0, 0, 1, 2, 3, 4, 5, 6}, "", nil},
+		{"FCS at end", wire.PktMeta{TsUS: 10, Channel: 11, RSSI: -40, Noise: -95, Rate: 108, BBFormat: wire.BB11g, OrigLen: 8, CapLen: 8}, []byte{0xc4, 0, 0, 0, 0x11, 0x22, 0x33, 0x44}, "", nil},
+		{"group of 3, per-antenna RSSI", wire.PktMeta{TsUS: 11, Channel: 6, RSSI: -55, Noise: -95, Rate: 12, BBFormat: wire.BB11g, OrigLen: 6, CapLen: 6}, []byte{0x80, 0, 0, 0, 0xde, 0xad}, "", []pcapng.Antenna{{Index: 0, RSSI: -55}, {Index: 1, RSSI: -61}, {Index: 2, RSSI: -70}}},
+		{"group of 2, HT, comment", wire.PktMeta{TsUS: 12, Channel: 36, Flags: wire.Pkt5GHz, RSSI: -60, Noise: -97, Rate: 3, BBFormat: wire.BBHT, OrigLen: 4, CapLen: 4}, []byte{0x88, 1, 2, 3}, "only dongle 2", []pcapng.Antenna{{Index: 1, RSSI: -60}, {Index: 0, RSSI: -66}}},
 	}
 	var out []tc
 	for _, c := range cases {
-		out = append(out, tc{c.name, c.m, hx(c.data), c.comment, hx(pcapng.EPB(c.m, c.data, c.comment))})
+		out = append(out, tc{c.name, c.m, hx(c.data), c.comment, c.ants, hx(pcapng.EPBAntennas(c.m, c.data, c.comment, c.ants))})
 	}
 	writeJSON("pcapng.json", map[string]any{"header_hex": hx(shb.Bytes()), "header_options": map[string]string{"shb_userappl": "capturetonkeli", "shb_hardware": "XIAO ESP32-C5"}, "packets": out})
 }

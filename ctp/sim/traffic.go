@@ -26,6 +26,7 @@ type RxFrame struct {
 	Rate     uint8
 	BBFormat uint8
 	FCSErr   bool
+	AirUS    float64 // generator air time of the frame (µs; frames are evenly spaced at the channel rate)
 }
 
 type bss struct {
@@ -40,6 +41,7 @@ type generator struct {
 	bssByCh map[uint8][]bss
 	seqNo   uint16
 	carry   float64
+	airUS   float64 // air time of the last frame: same sequence and times for the same seed
 }
 
 func newGenerator(seed int64, m TrafficModel) *generator {
@@ -88,7 +90,10 @@ func (g *generator) tick(ch uint8, dtSec float64) []RxFrame {
 	g.carry -= float64(n)
 	out := make([]RxFrame, 0, n)
 	for i := 0; i < n; i++ {
-		out = append(out, g.frame(ch, aps))
+		g.airUS += 1e6 / rate
+		f := g.frame(ch, aps)
+		f.AirUS = g.airUS
+		out = append(out, f)
 	}
 	return out
 }

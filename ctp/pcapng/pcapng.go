@@ -105,6 +105,9 @@ const (
 	rtNoise   = 1 << 6
 	rtMCS     = 1 << 19
 
+	rtAntSignal = 1 << 5  // in an antenna namespace: dBm antenna signal
+	rtAntenna   = 1 << 11 // antenna index
+
 	rtFlagFCS    = 0x10
 	rtFlagBadFCS = 0x40
 
@@ -114,8 +117,25 @@ const (
 	chan5G   = 0x0100
 )
 
+// Antenna is one dongle's copy of a frame in a multi-dongle group (docs/14 §4.7):
+// Index is the dongle number (radiotap Antenna), RSSI its dBm antenna signal.
+type Antenna struct {
+	Index uint8
+	RSSI  int8
+}
+
 // Radiotap builds the radiotap header for one packet's metadata.
-func Radiotap(m wire.PktMeta) []byte {
+func Radiotap(m wire.PktMeta) []byte { return RadiotapAntennas(m, nil) }
+
+// RadiotapAntennas is Radiotap plus one radiotap namespace per copy (dBm antenna signal +
+// antenna), so Wireshark shows each dongle's RSSI (docs/14 §4.7). With no antennas the
+// bytes equal Radiotap's.
+func RadiotapAntennas(m wire.PktMeta, ants []Antenna) []byte {
+	const (
+		rtNS  = 1 << 29
+		rtExt = 1 << 31
+		rtAnt = rtAntSignal | rtAntenna
+	)
 	present := uint32(rtTSFT | rtFlags | rtChannel | rtSignal | rtNoise)
 	legacy := m.Flags&wire.PktRateUnknown == 0 && (m.BBFormat == wire.BB11b || m.BBFormat == wire.BB11g)
 	mcs := m.Flags&wire.PktRateUnknown == 0 && m.BBFormat == wire.BBHT
@@ -125,9 +145,22 @@ func Radiotap(m wire.PktMeta) []byte {
 	if mcs {
 		present |= rtMCS
 	}
+	if len(ants) > 0 {
+		present |= rtNS | rtExt
+	}
 	b := []byte{0, 0, 0, 0} // version, pad, length (patched)
 	b = le.AppendUint32(b, present)
-	b = le.AppendUint64(b, m.TsUS) // offset 8: 8-byte aligned
+	for i := range ants {
+		w := uint32(rtAnt)
+		if i < len(ants)-1 {
+			w |= rtNS | rtExt
+		}
+		b = le.AppendUint32(b, w)
+	}
+	for len(b)%8 != 0 {
+		b = append(b, 0) // TSFT is 8-byte aligned
+	}
+	b = le.AppendUint64(b, m.TsUS)
 	var fl uint8
 	if m.Flags&wire.PktNoFCS == 0 && m.CapLen == m.OrigLen && m.CapLen >= 4 {
 		fl |= rtFlagFCS
@@ -160,13 +193,21 @@ func Radiotap(m wire.PktMeta) []byte {
 	if mcs {
 		b = append(b, 0x02 /* known: MCS index */, 0, m.Rate)
 	}
+	for _, a := range ants {
+		b = append(b, uint8(a.RSSI), a.Index)
+	}
 	le.PutUint16(b[2:], uint16(len(b)))
 	return b
 }
 
 // EPB builds one Enhanced Packet Block (radiotap + data).
 func EPB(m wire.PktMeta, data []byte, comment string) []byte {
-	rt := Radiotap(m)
+	return EPBAntennas(m, data, comment, nil)
+}
+
+// EPBAntennas is EPB with per-antenna radiotap namespaces (docs/14 §4.7).
+func EPBAntennas(m wire.PktMeta, data []byte, comment string, ants []Antenna) []byte {
+	rt := RadiotapAntennas(m, ants)
 	pkt := append(rt, data...)
 	orig := uint32(len(rt)) + uint32(m.OrigLen)
 	var body []byte
@@ -186,7 +227,12 @@ func EPB(m wire.PktMeta, data []byte, comment string) []byte {
 
 // WritePacket writes one packet; comment may be empty.
 func (w *Writer) WritePacket(m wire.PktMeta, data []byte, comment string) error {
-	w.buf = EPB(m, data, comment)
+	return w.WritePacketAntennas(m, data, comment, nil)
+}
+
+// WritePacketAntennas writes one packet with each dongle's copy (multi-dongle group).
+func (w *Writer) WritePacketAntennas(m wire.PktMeta, data []byte, comment string, ants []Antenna) error {
+	w.buf = EPBAntennas(m, data, comment, ants)
 	_, err := w.w.Write(w.buf)
 	return err
 }

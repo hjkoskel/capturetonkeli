@@ -1,6 +1,6 @@
 # 12 – FPV viewer for hx-esp32-cam-fpv (web UI)
 
-Status: implemented 2026-11-06 (js/hxfec.js, js/hxfpv.js, js/ui/fpv.js, js/hxdemo.js; tests test/js/hxfpv.test.mjs).
+Status: implemented 2026-11-06 (js/hxfec.js, js/hxfpv.js, js/ui/fpv.js, js/hxdemo.js; tests test/js/hxfpv.test.mjs). Go library: `ctp/hxfpv` + `ctp/fec` (doc 05 §11, 2026-11-09).
 
 ## 1. Purpose
 Show the live video of an [hx-esp32-cam-fpv](https://github.com/RomanLut/hx-esp32-cam-fpv) air unit (ESP32-CAM / ESP32-S3 Sense, firmware 0.3, packet version 2) in the browser, using the capture dongle as a passive receiver. The page **never transmits**: the native ground station (GS) still links with the air unit (Connect/Config packets go GS → air). The page shows the same air → ground stream, so it works as a second screen or a field monitor. Several air units can be in range; they are told apart by their air device ID.

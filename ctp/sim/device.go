@@ -127,6 +127,7 @@ type Device struct {
 	bootReason    wire.ResetReason
 	bootSent      bool
 	gen           *generator
+	airBaseUS     float64 // device time − generator air time at capture start
 	lastGenAt     time.Time
 	lastStats     time.Time
 	seq           uint16
@@ -372,6 +373,7 @@ func (d *Device) execLocked(typ uint8, body []byte) (uint8, []byte) {
 		if m.On && !d.cfg.CaptureOn {
 			d.rxSeq = 0
 			d.lastGenAt = time.Now()
+			d.airBaseUS = float64(d.nowUS()) - d.gen.airUS
 		}
 		d.applyLocked(func(c *wire.Config) { c.CaptureOn = m.On })
 		return d.configRsp()
@@ -576,7 +578,13 @@ func (d *Device) captureLocked(fr RxFrame, now time.Time) {
 	if d.cfg.BW != wire.BW20 {
 		flags |= wire.PktHT40
 	}
-	meta := wire.PktMeta{TsUS: uint64(now.Sub(d.start) / time.Microsecond), Channel: d.cfg.Channel, Flags: flags,
+	// time stamp = when the frame was on the air (evenly spaced, like a real channel), not
+	// the 5 ms tick that delivers it: dongles with the same seed then agree (docs/14 tests)
+	ts := uint64(now.Sub(d.start) / time.Microsecond)
+	if at := d.airBaseUS + fr.AirUS; at > 0 && at < float64(ts) {
+		ts = uint64(at)
+	}
+	meta := wire.PktMeta{TsUS: ts, Channel: d.cfg.Channel, Flags: flags,
 		RSSI: fr.RSSI, Noise: fr.Noise, Rate: fr.Rate, BBFormat: fr.BBFormat, OrigLen: uint16(ol)}
 	if !d.flt.Match(fr.Data, meta) {
 		if fr.FCSErr && d.flt.Global.DropFCSErr {

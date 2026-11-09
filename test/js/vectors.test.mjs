@@ -117,7 +117,8 @@ test('pcapng EPB bytes', () => {
   for (const p of v.packets) {
     const M = p.meta;
     const m = { tsUs: M.TsUS, channel: M.Channel, flags: M.Flags, rssi: M.RSSI, noise: M.Noise, rate: M.Rate, bbFormat: M.BBFormat, origLen: M.OrigLen, capLen: M.CapLen, rxSeq: M.RxSeq };
-    assert.equal(hex(pcapng.epb(m, unhex(p.data_hex), p.comment ?? '')), p.epb_hex, p.name);
+    const ants = p.antennas?.map((a) => ({ ant: a.Index, rssi: a.RSSI })) ?? null;
+    assert.equal(hex(pcapng.epb(m, unhex(p.data_hex), p.comment ?? '', ants)), p.epb_hex, p.name);
   }
 });
 
