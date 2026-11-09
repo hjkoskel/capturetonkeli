@@ -466,6 +466,7 @@ After entering download mode the USB device re-enumerates. Web Serial needs the 
 
 - Desired config (country/mode, band, channel, bw, snaplen, driver masks, active filter set). Restored and pushed on connect.
 - Auto-start capture; auto-reconnect.
+- Keep the screen on (§18): while connected or recording (default) / always / never.
 - Transport override (auto / Web Serial / WebUSB).
 - Packet store size.
 - Time format; theme; colour rules on/off.
@@ -515,6 +516,7 @@ The page is an installable Progressive Web App (Chrome/Edge on desktop and Andro
 - **Offline:** the service worker precaches every web file (docs/11 §3); the installed app starts without network, demo mode included. Firmware images (`fw/*.bin`) are not precached; flashing needs the network once.
 - **Updates:** a new version shows the banner "A new version of the app is ready – Reload". Nothing reloads by itself; Reload is refused while recording. The app checks every 30 min and when it comes back to the front.
 - **Mobile layout** (< 900 px): one-row top bar (the link text shrinks, the firmware badge shows only as a warning), packet list columns #, time, channel, RSSI, type; no pull-to-refresh (`overscroll-behavior: none`, a reload would end the capture); content kept clear of notches and gesture bars (`viewport-fit=cover` + `env(safe-area-inset-*)`).
+- **Keep the screen on** (js/wakelock.js, Screen Wake Lock API): by default while a dongle or the demo is connected (or reconnecting) or a recording runs; settings: always / never. A locked phone suspends the page and the dongle's watchdog stops the capture (§4), and FPV needs the screen anyway. The browser drops the lock when the page is hidden; it is taken again when visible. Refusals (battery saver) only log; the Settings tab says whether the screen is kept on.
 - iOS/iPadOS: installable as a home-screen bookmark, but without WebUSB/Web Serial only the demo works (§1).
 
 ---

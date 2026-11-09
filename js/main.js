@@ -16,6 +16,7 @@ import { initLog } from './ui/logpanel.js';
 import { initSettings } from './ui/settingspanel.js';
 import { initPackets } from './ui/packets.js';
 import * as flasher from './flasher.js';
+import { initWakeLock } from './wakelock.js';
 
 // ---- global error net: nothing fails silently -----------------------------------------
 window.addEventListener('error', (e) => internalError(e.error ?? e.message));
@@ -261,6 +262,7 @@ initDevice($('#panel-device'));
 initLog($('#panel-log'));
 initSettings($('#panel-settings'), { applyTheme });
 initPackets();
+initWakeLock();
 app.loadManifest();
 offerKnown();
 log('info', `Page loaded (${navigator.userAgent})`, 'page');
