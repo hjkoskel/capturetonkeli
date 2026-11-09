@@ -232,3 +232,62 @@ func TestMP4GapsSPSChangeNoKey(t *testing.T) {
 		t.Fatalf("SPS change: %d files, want 2", len(files))
 	}
 }
+
+func TestRecorderMatchesMP4Files(t *testing.T) {
+	v := load(t)
+	dir := t.TempDir()
+	for _, c := range []string{H264, H265} {
+		aus := depack(Auto, v[c].RTP, -1)
+		want, err := MP4Files(c, aus)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := NewRecorder(filepath.Join(dir, c+".mp4"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, a := range aus[1:] { // starts without a key frame: skipped until the next one
+			if err := r.Add(a); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, a := range aus {
+			_ = r.Add(a)
+		}
+		files, err := r.Close()
+		if err != nil || len(files) < 1 {
+			t.Fatalf("%s: %v %v", c, files, err)
+		}
+		got, _ := os.ReadFile(files[len(files)-1].Path)
+		if _, err := os.Stat(filepath.Join(dir, c+".mp4.part")); !os.IsNotExist(err) {
+			t.Fatal("spool left behind")
+		}
+		// the last file holds the second pass: a key frame with the same SPS does not split,
+		// so compare against MP4Files of the units the recorder kept
+		r2, _ := NewRecorder(filepath.Join(dir, c+"-b.mp4"))
+		for _, a := range aus {
+			_ = r2.Add(a)
+		}
+		files2, _ := r2.Close()
+		got2, _ := os.ReadFile(files2[0].Path)
+		if !bytes.Equal(got2, want[0].Data) || files2[0].Frames != len(aus) || files2[0].Width != 320 {
+			t.Fatalf("%s: recorder output differs from MP4Files (%+v)", c, files2)
+		}
+		if len(got) == 0 {
+			t.Fatal("empty file")
+		}
+		// raw Annex B
+		raw := filepath.Join(dir, c+".raw")
+		r3, _ := NewRecorder(raw)
+		for _, a := range aus {
+			_ = r3.Add(a)
+		}
+		if _, err := r3.Close(); err != nil {
+			t.Fatal(err)
+		}
+		b, _ := os.ReadFile(raw)
+		if !bytes.HasPrefix(b, aus[0].Data) {
+			t.Fatal("raw stream")
+		}
+	}
+}
