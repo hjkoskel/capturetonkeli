@@ -54,9 +54,12 @@ fpvview -pcap capture.pcapng -system openhd                  # replay a web UI /
   copies. The dongle gets the system's capture filter (`openhd.CaptureFilter`,
   `hxfpv.CaptureFilter`), snaplen 0 and the channel; `-country` sets the regulatory country
   (5 GHz channels need one that allows them).
-- **OpenHD video:** low latency settings for ffmpeg (no probing or buffering, one decoder
-  thread, an access unit delimiter after every frame). When ffmpeg falls behind, frames are
-  dropped until the next key frame.
+- **OpenHD video:** low latency settings for ffmpeg (minimal probing, one thread for
+  decoding and output, an access unit delimiter after every frame). Real cameras send key
+  frames rarely or never (intra refresh), so the decoder starts with the cached parameter
+  sets when no key frame came within 2 s, and after dropping frames (ffmpeg behind) it
+  resumes within 1 s even without a key frame. `-v` logs what the decoder does;
+  `-demo-keyint` sets the demo's key frame interval (default 300 frames).
 - **Recording** happens before decoding, so it does not depend on the window.
   - OpenHD `.mp4` is written moov-first; the frames are spooled to `NAME.mp4.part` and the
     file is assembled when the camera changes its SPS (continuing in `NAME-2.mp4`) or on

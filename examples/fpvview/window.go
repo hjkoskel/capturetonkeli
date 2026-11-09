@@ -114,7 +114,7 @@ func window(ctx context.Context, cfg *config, sh *shared) error {
 		if texW != 0 {
 			drawFitted(tex, texW, texH, sw, shh, cfg.flip)
 		} else {
-			msg := "waiting for video…"
+			msg := "waiting for video..."
 			if note != "" {
 				msg = note
 			}

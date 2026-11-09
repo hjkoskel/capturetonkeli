@@ -106,6 +106,9 @@ func (p *ohdPipe) onRTP(u *openhd.Unit, cam int, pkt []byte, info openhd.FragInf
 }
 
 func (p *ohdPipe) onAU(au video.AU) {
+	if p.cfg.verbose && (au.Key || au.Damaged) {
+		log.Printf("access unit: key %v, damaged %v, parameter sets %v, %d bytes", au.Key, au.Damaged, au.HasParams, len(au.Data))
+	}
 	p.auN++
 	p.codec = au.Codec
 	if p.rec != nil {
@@ -147,6 +150,9 @@ func (p *ohdPipe) status() []string {
 		if f, ok := shown.FEC[p.cfg.cam]; ok {
 			lines = append(lines, fmt.Sprintf("video %s %s · %.0f frames/s · FEC blocks ok %d, repaired %d, lost %d",
 				p.codec, p.dec.size(), p.auFPS, f.BlocksOK, f.BlocksFEC, f.BlocksLost))
+		}
+		if st := p.dec.state(); st != "" {
+			lines = append(lines, st)
 		}
 	case s.G.OhdFrames[1] > 0 && !s.Keys.Air:
 		lines = append(lines, "OpenHD frames heard, but no key for the air unit")

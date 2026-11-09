@@ -121,7 +121,7 @@ func newOpenHDDemo(ctx context.Context, cfg *config) (*demo, error) {
 		enc = []string{"-c:v", "libx265", "-preset", "ultrafast", "-tune", "zerolatency", "-x265-params", "log-level=error", "-bsf:v", "hevc_metadata=aud=insert", "-f", "hevc"}
 	}
 	args := append([]string{"-hide_banner", "-loglevel", "error", "-nostdin", "-re", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30",
-		"-g", "30", "-bf", "0", "-pix_fmt", "yuv420p"}, enc...)
+		"-g", fmt.Sprint(max(1, cfg.demoKeyint)), "-bf", "0", "-pix_fmt", "yuv420p"}, enc...)
 	cmd := exec.CommandContext(ctx, cfg.ffmpeg, append(args, "pipe:1")...)
 	out, err := cmd.StdoutPipe()
 	if err != nil {

@@ -38,6 +38,7 @@ type config struct {
 	demo       bool
 	demoLoss   float64
 	demoCodec  string
+	demoKeyint int
 	pcap       string
 	country    string
 	channel    int
@@ -68,6 +69,7 @@ func parseFlags() (*config, error) {
 	flag.BoolVar(&c.demo, "demo", false, "simulated air unit instead of a dongle (OpenHD demo needs ffmpeg with libx264/libx265)")
 	flag.Float64Var(&c.demoLoss, "demo-loss", 0.03, "demo: fraction of frames lost on the air")
 	flag.StringVar(&c.demoCodec, "demo-codec", "h264", "demo (OpenHD): h264 or h265")
+	flag.IntVar(&c.demoKeyint, "demo-keyint", 300, "demo (OpenHD): frames between key frames (real cameras send them rarely)")
 	flag.StringVar(&c.pcap, "pcap", "", "replay a pcapng capture (web UI or ctpbench) instead of a dongle")
 	flag.StringVar(&c.country, "country", "", "regulatory country for the dongle, e.g. FI (empty = keep the dongle's)")
 	flag.IntVar(&c.channel, "channel", 0, "Wi-Fi channel (default: OpenHD 149, hx 7)")
