@@ -3,11 +3,11 @@
 // Everything else: cache-first within one cache per version. VERSION is a hash of
 // every file in FILES (tools/sw_version.mjs, checked by make js-test), so any UI change
 // changes sw.js, the browser installs the new worker and the page offers "Reload".
-const VERSION = 'ac2494ebe5a3da4e';
+const VERSION = 'b4deb9e98bcb2370';
 const FILES = ['./', 'index.html', 'css/app.css', 'favicon.svg', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'js/main.js', 'js/app.js', 'js/codec.js', 'js/wire.js',
   'js/filter.js', 'js/semver.js', 'js/dot11.js', 'js/pcapng.js', 'js/protocol.js', 'js/errors.js', 'js/transport.js', 'js/demo-device.js',
   'js/worker.js', 'js/display-filter.js', 'js/regdom.js', 'js/settings.js', 'js/log.js', 'js/ui/dom.js', 'js/ui/radio.js', 'js/ui/filterpanel.js',
-  'js/ui/stats.js', 'js/ui/device.js', 'js/ui/logpanel.js', 'js/ui/settingspanel.js', 'js/ui/packets.js', 'js/romflash.js', 'js/flasher.js', 'js/hxfec.js', 'js/hxfpv.js', 'js/hxdemo.js', 'js/ui/fpv.js', 'js/ohdcrypto.js', 'js/ohdfec.js', 'js/openhd.js', 'js/ohdkeys.js', 'js/ohdkeys-worker.js', 'js/mavlink.js', 'js/mavlink-crc.js', 'js/rtp.js', 'js/ohddemo.js', 'js/ui/openhd.js', 'js/ui/flip.js', 'js/mp4.js', 'js/wakelock.js', 'fw/manifest.json'];
+  'js/ui/stats.js', 'js/ui/device.js', 'js/ui/logpanel.js', 'js/ui/settingspanel.js', 'js/ui/packets.js', 'js/romflash.js', 'js/flasher.js', 'js/hxfec.js', 'js/hxfpv.js', 'js/hxdemo.js', 'js/ui/fpv.js', 'js/ohdcrypto.js', 'js/ohdfec.js', 'js/openhd.js', 'js/ohdkeys.js', 'js/ohdkeys-worker.js', 'js/mavlink.js', 'js/mavlink-crc.js', 'js/rtp.js', 'js/ohddemo.js', 'js/ui/openhd.js', 'js/ui/flip.js', 'js/mp4.js', 'js/wakelock.js', 'js/diversity.js', 'js/ui/group.js', 'fw/manifest.json'];
 
 const CACHE = `ctk-${VERSION}`; // fw/manifest.json is in FILES, so a release changes VERSION too
 

@@ -115,10 +115,13 @@ export function initPackets() {
     app.emit('packet-selected', app.selectedPacket);
     const flags = Object.entries(W.PKT).filter(([, b]) => m.flags & b).map(([k]) => k.toLowerCase()).join(', ') || 'none';
     const rate = m.flags & W.PKT.RATE_UNKNOWN ? 'unknown' : m.bbFormat <= 1 ? `${m.rate / 2} Mb/s` : `MCS ${m.rate}`;
-    const meta = h('dl.kv', ...[['Packet', `#${d.n}`], ['Device time', `${m.tsUs} µs (+${d.rel.toFixed(6)} s)`], ['Host time', new Date(d.hostMs).toISOString()],
+    const meta = h('dl.kv', ...[['Packet', `#${d.n}`], [d.copies ? 'Group time' : 'Device time', `${m.tsUs} µs (+${d.rel.toFixed(6)} s)`], ['Host time', new Date(d.hostMs).toISOString()],
       ['Channel', `${m.channel} (${W.channelFreq(m.channel)} MHz)`], ['RSSI / noise', `${m.rssi} / ${m.noise} dBm (SNR ${m.rssi - m.noise} dB)`],
       ['PHY', `${W.bbName(m.bbFormat)}, ${rate}`], ['Length', `${m.capLen} of ${m.origLen} bytes${m.flags & W.PKT.NO_FCS ? ' (no FCS)' : ''}`],
-      ['Flags', flags], ['rx_seq / cfg_gen', `${m.rxSeq} / ${d.cfgGen}`]].flatMap(([k, v]) => [h('dt', k), h('dd', String(v))]));
+      ['Flags', flags], ['rx_seq / cfg_gen', `${m.rxSeq} / ${d.cfgGen}`],
+      // diversity (docs/14): which dongles heard this frame, RSSI at each; the first one is shown above
+      ...(d.copies ? [['Received by', d.copies.map((c) => `${c.label} ${c.rssi} dBm${c.first ? ' (first)' : ''}`).join(' · ') || '–']] : []),
+    ].flatMap(([k, v]) => [h('dt', k), h('dd', String(v))]));
 
     const tree = h('div.tree');
     const add = (k, v, range) => tree.append(h('div', range ? { 'data-s': range[0], 'data-l': range[1] } : {}, h('span.k', `${k}: `), v));

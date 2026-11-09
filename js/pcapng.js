@@ -34,14 +34,24 @@ export function header({ userAppl = '', hardware = '', ifName = '', snaplen = 0 
   return Uint8Array.from([...block(SHB, shb).a, ...block(IDB, idb).a]);
 }
 
-/** Radiotap header for a PKT meta (same field set as Go). */
-export function radiotap(m) {
+/**
+ * Radiotap header for a PKT meta (same field set as Go). `antennas` (multi-dongle group,
+ * docs/14 §4.7): [{ant, rssi}] adds one radiotap namespace per copy with dBm antenna signal
+ * + antenna index, so Wireshark shows each dongle's RSSI. Without it the bytes are unchanged.
+ */
+export function radiotap(m, antennas = null) {
   const legacy = !(m.flags & PKT.RATE_UNKNOWN) && (m.bbFormat === BB.B11 || m.bbFormat === BB.G11);
   const mcs = !(m.flags & PKT.RATE_UNKNOWN) && m.bbFormat === BB.HT;
+  const ants = antennas?.length ? antennas : [];
+  const EXT = 0x80000000, NS = 1 << 29, ANT = (1 << 5) | (1 << 11);
   let present = 1 | 2 | 8 | 32 | 64;
   if (legacy) present |= 4;
   if (mcs) present |= 1 << 19;
-  const b = new Buf().u8(0).u8(0).u16(0).u32(present).u64(m.tsUs);
+  if (ants.length) present = (present | NS | EXT) >>> 0;
+  const b = new Buf().u8(0).u8(0).u16(0).u32(present);
+  ants.forEach((_, i) => b.u32(i < ants.length - 1 ? (ANT | NS | EXT) >>> 0 : ANT));
+  while (b.length % 8) b.u8(0); // TSFT is 8-aligned (relative to the header start)
+  b.u64(m.tsUs);
   let fl = 0;
   if (!(m.flags & PKT.NO_FCS) && m.capLen === m.origLen && m.capLen >= 4) fl |= 0x10;
   if (m.flags & PKT.FCS_ERR) fl |= 0x40;
@@ -53,14 +63,15 @@ export function radiotap(m) {
   const cf = five ? 0x0100 | 0x0040 : 0x0080 | (m.bbFormat === BB.B11 ? 0x0020 : 0x0040);
   b.u16(mhz).u16(cf).u8(m.rssi).u8(m.noise);
   if (mcs) b.u8(0x02).u8(0).u8(m.rate);
+  for (const x of ants) b.u8(x.rssi).u8(x.ant);
   const out = Uint8Array.from(b.a);
   out[2] = out.length & 0xff; out[3] = out.length >> 8;
   return out;
 }
 
 /** One Enhanced Packet Block. */
-export function epb(m, data, comment = '') {
-  const rt = radiotap(m);
+export function epb(m, data, comment = '', antennas = null) {
+  const rt = radiotap(m, antennas);
   const caplen = rt.length + data.length;
   const body = new Buf().u32(0).u32(Math.floor(m.tsUs / 2 ** 32)).u32(m.tsUs % 2 ** 32).u32(caplen).u32(rt.length + m.origLen)
     .bytes(rt).bytes(data);

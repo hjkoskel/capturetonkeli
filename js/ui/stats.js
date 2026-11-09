@@ -88,7 +88,7 @@ export function initStats(root) {
   });
   app.addEventListener('conn', (e) => { if (e.detail === 'disconnected') { diag.textContent = 'Not connected.'; prev = null; } });
 
-  async function refresh() { inline(msg, await app.act('Refresh stats', async (c) => { const st = await c.stats(false); app.devStats = st; draw(st); })); }
+  async function refresh() { inline(msg, await app.actOne('Refresh stats', async (c) => { const st = await c.stats(false); app.primary.devStats = st; draw(st); })); }
   async function resetCounters() {
     if (!(await confirmDlg('Reset counters?', 'Zeroes the dongle counters and this page\'s rate history.', 'Reset'))) return;
     inline(msg, await app.act('Reset stats', async (c) => { await c.stats(true); prev = null; hist.length = 0; }));

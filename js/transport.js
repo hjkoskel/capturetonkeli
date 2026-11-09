@@ -2,7 +2,7 @@
 //   open() · close() · write(u8) · onData(cb) · onLost(cb(err)) · label
 // Control lines (DTR/RTS) are never changed: lowering RTS wedged the C5 ROM
 // and the OS default does not reset the app (docs/01 risk #1, M3).
-import { DemoDevice } from './demo-device.js';
+import { DemoDevice, DemoAir } from './demo-device.js';
 
 export const USB_FILTER = { usbVendorId: 0x303a, usbProductId: 0x1001 };
 
@@ -23,6 +23,8 @@ export class SerialTransport extends Base {
     this.kind = 'serial';
     this.label = `Web Serial ${i.usbVendorId === 0x303a ? '(Espressif USB-Serial/JTAG)' : ''}`.trim();
   }
+
+  get portId() { return this.port; }
 
   static async request() {
     if (!navigator.serial) throw Object.assign(new Error('Web Serial is not available'), { name: 'NotSupportedError' });
@@ -100,6 +102,8 @@ export class UsbTransport extends Base {
     this.label = 'WebUSB (CDC-ACM)';
   }
 
+  get portId() { return this.dev; }
+
   static async request() {
     if (!navigator.usb) throw Object.assign(new Error('WebUSB is not available'), { name: 'NotSupportedError' });
     return new UsbTransport(await navigator.usb.requestDevice({ filters: [{ vendorId: 0x303a, productId: 0x1001 }] }));
@@ -169,18 +173,28 @@ export class UsbTransport extends Base {
 
 // ---- demo (simulated dongle in this page) ------------------------------------------------
 
-let demoDevice = null; // persists across reconnects, like a real dongle
+const demoDevices = new Map(); // index → DemoDevice; persists across reconnects, like a real dongle
+let demoAir = null;           // the simulated air all demo dongles hear (docs/14 diversity demo)
 
 export class DemoTransport extends Base {
-  constructor() {
+  /** index: which demo dongle (0 = the usual one; 1–3 = more antennas for diversity). */
+  constructor(index = 0) {
     super();
     this.kind = 'demo';
-    this.label = 'Demo dongle (simulated)';
-    demoDevice ??= new DemoDevice({ onBytes: (u8) => DemoTransport.current?.deliver(u8), seed: Date.now() & 0xffff });
-    this.device = demoDevice;
+    this.index = index;
+    this.label = index ? `Demo dongle ${index + 1} (simulated)` : 'Demo dongle (simulated)';
+    demoAir ??= new DemoAir(Date.now() & 0xffff);
+    let d = demoDevices.get(index);
+    if (!d) {
+      d = new DemoDevice({ onBytes: (u8) => DemoTransport.current.get(index)?.deliver(u8), seed: (Date.now() & 0xffff) + index, index, air: demoAir });
+      demoDevices.set(index, d);
+    }
+    this.device = d;
   }
+  /** The port this transport talks to (two members must not share one). */
+  get portId() { return `demo:${this.index}`; }
   async open() {
-    DemoTransport.current = this;
+    DemoTransport.current.set(this.index, this);
     this.closed = false;
     this.device.attach();
   }
@@ -200,9 +214,10 @@ export class DemoTransport extends Base {
     if (this.closed) return;
     this.closed = true;
     this.device.detach();
-    if (DemoTransport.current === this) DemoTransport.current = null;
+    if (DemoTransport.current.get(this.index) === this) DemoTransport.current.delete(this.index);
   }
 }
+DemoTransport.current = new Map();
 
 /** auto: Web Serial on desktop, WebUSB on Android (docs/04 §1). */
 export function pickTransport(pref = 'auto') {

@@ -44,6 +44,7 @@ make serve-https                          # web UI on the lab LAN (self-signed h
 11. [GitHub repo, Pages & release](docs/11-github-repo-and-release.md)
 12. [FPV viewer for hx-esp32-cam-fpv](docs/12-hx-fpv-viewer.md)
 13. [OpenHD passive receiver](docs/13-openhd-passive-receiver.md)
+14. [Multi-dongle receive diversity](docs/14-multi-dongle-diversity.md)
 
 ## Legal
 Capture only networks you own or are authorised to test. Intercepting other people's communications may be illegal where you live.
