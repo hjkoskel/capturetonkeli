@@ -3,7 +3,7 @@
 import { app } from './app.js';
 import { h, $, banner, clearBanner, dialog, toast, messageEl } from './ui/dom.js';
 import { unsupportedReason, describe } from './errors.js';
-import { SerialTransport, UsbTransport, pickTransport, USB_FILTER } from './transport.js';
+import { SerialTransport, UsbTransport, pickTransport, USB_FILTER, USB_TUNING } from './transport.js';
 import * as settings from './settings.js';
 import * as W from './wire.js';
 import { log, subscribe } from './log.js';
@@ -31,6 +31,7 @@ function internalError(err) {
 }
 
 const s = settings.load();
+Object.assign(USB_TUNING, { inflight: s.usbInflight, size: Number(s.usbSize) || 16384 });
 applyTheme(s.theme);
 export function applyTheme(t) {
   if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
@@ -239,6 +240,8 @@ async function showCaps() {
   const api = { serial: 'Web Serial', webusb: 'WebUSB' }[t.api] ?? 'no USB access';
   const head = h('div', h('b', `This browser: ${p.name}${p.version ? ` ${p.version}` : ''}${p.os ? ` on ${p.os}` : ''}`),
     ` · dongle via ${api}`, h('span.muted', ` (${t.why})`));
+  // WebUSB inside a worker would take the USB reads off the busy main thread (docs/01 §6)
+  try { const w = await app.ask({ t: 'caps' }); if (navigator.usb) c.items.splice(2, 0, { name: 'WebUSB in a worker', ok: !!w.usb, text: w.usb ? 'reads could run off the main thread' : '' }); } catch { /* old worker */ }
   const list = h('ul.caps-list', ...c.items.map((x) => h(`li.${x.ok ? 'yes' : x.ok === false ? 'no' : 'maybe'}`,
     h('span', { 'aria-hidden': 'true' }, x.ok ? '✓ ' : '✗ '), `${x.name}${x.ok ? '' : ' – not available'}`, x.text ? h('span.muted', ` (${x.text})`) : null)));
   const test = p.android && navigator.serial && t.api !== 'serial' && settings.get().transport === 'auto'

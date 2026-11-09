@@ -455,6 +455,7 @@ self.onmessage = (e) => {
       break;
     }
     case 'members': setMembers(m.list); break;
+    case 'caps': self.postMessage({ t: 'caps', id: m.id, usb: 'usb' in navigator, serial: 'serial' in navigator }); break;
     case 'mark': addMark(m.text, m.kind ?? 'info'); break;
     case 'cfgnote': cfgNotes.set(`${m.m ?? 0}:${m.gen}`, m.text); if (cfgNotes.size > 300) cfgNotes.delete(cfgNotes.keys().next().value); break;
     case 'capture-start': captureEpoch++; for (const x of mems.values()) x.lastRxSeq = -1; break;
