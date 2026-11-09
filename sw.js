@@ -3,7 +3,7 @@
 // Everything else: cache-first within one cache per version. VERSION is a hash of
 // every file in FILES (tools/sw_version.mjs, checked by make js-test), so any UI change
 // changes sw.js, the browser installs the new worker and the page offers "Reload".
-const VERSION = '5db1f3735b53970f';
+const VERSION = 'd021f61b4a8a2ede';
 const FILES = ['./', 'index.html', 'css/app.css', 'favicon.svg', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png', 'js/main.js', 'js/app.js', 'js/codec.js', 'js/wire.js',
   'js/filter.js', 'js/semver.js', 'js/dot11.js', 'js/pcapng.js', 'js/protocol.js', 'js/errors.js', 'js/transport.js', 'js/demo-device.js',
   'js/worker.js', 'js/display-filter.js', 'js/regdom.js', 'js/settings.js', 'js/log.js', 'js/ui/dom.js', 'js/ui/radio.js', 'js/ui/filterpanel.js',

@@ -62,7 +62,7 @@ let N = 200000, BYTES = 64 << 20;
 let col, bytes, wp = 0, oldest = 0, next = 0;
 function alloc(n) {
   N = n;
-  BYTES = Math.min(256 << 20, Math.max(16 << 20, n * 320));
+  BYTES = Math.min(256 << 20, Math.max(4 << 20, n * 320)); // ≥ 1000 full-size frames
   col = {
     ts: new Float64Array(N), hostMs: new Float64Array(N), off: new Uint32Array(N), origLen: new Uint16Array(N), capLen: new Uint16Array(N),
     rxSeq: new Uint16Array(N), ch: new Uint8Array(N), flags: new Uint8Array(N), rssi: new Int8Array(N), noise: new Int8Array(N),
@@ -482,7 +482,7 @@ self.onmessage = (e) => {
       break;
     }
     case 'ohd-rec-stop': ohdRecStop(); break;
-    case 'store-size': merger?.flush(); alloc(Math.max(10000, Math.min(2000000, m.n | 0))); firstTs = null; break;
+    case 'store-size': merger?.flush(); alloc(Math.max(1000, Math.min(2000000, m.n | 0))); firstTs = null; break;
     case 'rec-start': rec = { chunks: [P.header(m.opts)], size: 0, packets: 0, filtered: !!m.filtered }; rec.size = rec.chunks[0].length; break;
     case 'rec-stop':
       if (rec && merger) for (let k = merger.qHead; k < merger.queue.length; k++) { const e = merger.queue[k]; if (e.abs !== null && e.abs >= oldest) recordPacket(e.abs); } // still open: record now

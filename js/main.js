@@ -32,6 +32,7 @@ function internalError(err) {
 
 const s = settings.load();
 Object.assign(USB_TUNING, { inflight: s.usbInflight, size: Number(s.usbSize) || 16384 });
+if (s.storeSize !== 200000) app.post({ t: 'store-size', n: s.storeSize }); // the worker starts with the default
 applyTheme(s.theme);
 export function applyTheme(t) {
   if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;

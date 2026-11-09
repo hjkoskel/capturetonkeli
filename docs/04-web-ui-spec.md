@@ -85,7 +85,7 @@ UI ──► protocol.js ──► codec (COBS+CRC) ──► transport.write
 | Sustained ingest | ≥ 15 000 PKT/s and ≥ 1.2 MB/s without host overrun on a mid-range laptop; ≥ 5 000 PKT/s on a mid-range Android phone |
 | Packet-to-screen latency | ≤ 50 ms (p95) from chunk arrival to visible row while auto-scroll is on |
 | Command feedback | UI shows applied readback within 1 RTT. Spinner if > 150 ms |
-| Rendering | ≤ 30 fps, requestAnimationFrame-driven, virtualized list (only visible rows in DOM) |
+| Rendering | ≤ 30 fps (15 on touch devices), requestAnimationFrame-driven, virtualized list (only visible rows in DOM, row elements reused, no redraw when nothing changed, no forced layout: geometry cached via ResizeObserver/scroll). Measured: the list's main-thread cost on a 4×-slowed CPU fell from 43 % to 17 % (demo, ~600 pkt/s) |
 | Memory | Bounded by packet-store size. No growth during long captures |
 
 ---
@@ -468,7 +468,7 @@ After entering download mode the USB device re-enumerates. Web Serial needs the 
 - Auto-start capture; auto-reconnect.
 - Keep the screen on (§18): while connected or recording (default) / always / never.
 - Transport override (auto / Web Serial / WebUSB).
-- Packet store size.
+- Packet store size (1 000 – 2 000 000; older packets are discarded; applied at startup). Memory only: the list draws just the visible rows, so a small store saves memory, not CPU.
 - Time format; theme; colour rules on/off.
 - Recording defaults (name template, split).
 - Developer: show raw frames in log, fault injection (demo), PING interval (250–2000 ms), log EVT_LOG level.
