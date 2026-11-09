@@ -16,6 +16,7 @@ import { initLog } from './ui/logpanel.js';
 import { initSettings } from './ui/settingspanel.js';
 import { initPackets } from './ui/packets.js';
 import * as flasher from './flasher.js';
+import { initWakeLock } from './wakelock.js';
 
 // ---- global error net: nothing fails silently -----------------------------------------
 window.addEventListener('error', (e) => internalError(e.error ?? e.message));
@@ -171,6 +172,7 @@ menu.addEventListener('click', async (e) => {
     const n = await app.exportBuffer(filtered);
     toast(`Exported ${n} packets${filtered ? ' (display filter applied)' : ''}`);
   }
+  if (act === 'install') promptInstall();
   if (act === 'help') showHelp();
   if (act === 'about') showAbout();
 });
@@ -260,11 +262,62 @@ initDevice($('#panel-device'));
 initLog($('#panel-log'));
 initSettings($('#panel-settings'), { applyTheme });
 initPackets();
+initWakeLock();
 app.loadManifest();
 offerKnown();
 log('info', `Page loaded (${navigator.userAgent})`, 'page');
 
-// Service worker: offline + update banner (docs/11 §3). Failures only log.
+// ---- installable app (docs/04 §18) -----------------------------------------------------------
+// Service worker: offline + update banner (docs/11 §3). Failures only log. Not on plain
+// http (make serve), so development never runs stale cached files.
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('./sw.js', { scope: './' }).catch((e) => log('debug', `service worker: ${e.message}`, 'page'));
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading) location.reload(); });
+  const offerUpdate = (reg) => {
+    if (!reg.waiting || !navigator.serviceWorker.controller) return; // first install: nothing to replace
+    banner('update', { level: 'info', title: 'A new version of the app is ready', text: 'Reload to use it. Nothing changes until you do.', actions: [] },
+      [h('button.primary', { onclick: () => {
+        if (app.recording) { toast('Stop the recording first, then reload'); return; }
+        reloading = true; reg.waiting.postMessage({ t: 'skip-waiting' });
+      } }, 'Reload')]);
+  };
+  navigator.serviceWorker.register('./sw.js', { scope: './' }).then((reg) => {
+    offerUpdate(reg);
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      w?.addEventListener('statechange', () => { if (w.state === 'installed') offerUpdate(reg); });
+    });
+    // an installed app stays open for days: look for a new version every 30 min and when it comes back to the front
+    const check = () => reg.update().catch(() => { /* offline */ });
+    setInterval(check, 30 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  }).catch((e) => log('debug', `service worker: ${e.message}`, 'page'));
 }
+
+// "Install as app": Chrome/Edge (desktop, Android) fire beforeinstallprompt when the page is installable.
+let installEvt = null;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function showInstall(on) { menu.querySelector('[data-act=install]').classList.toggle('hidden', !on); $('#start-install').classList.toggle('hidden', !on); }
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; showInstall(!standalone()); });
+window.addEventListener('appinstalled', () => { installEvt = null; showInstall(false); toast('Installed: start capturetonkeli from your home screen or app menu', 5000); log('info', 'Installed as app', 'page'); });
+async function promptInstall() {
+  if (!installEvt) { toast('Use the browser menu → Install app / Add to Home screen'); return; }
+  const e = installEvt;
+  installEvt = null;
+  showInstall(false);
+  const { outcome } = await e.prompt().then(() => e.userChoice).catch(() => ({ outcome: 'error' }));
+  log('info', `Install prompt: ${outcome}`, 'page');
+}
+$('#start-install-btn').onclick = promptInstall;
+if (standalone()) log('info', 'Running as installed app', 'page');
+
+// App shortcut "Demo" (manifest) and links to ./#demo start demo mode.
+function demoFromUrl(url) {
+  if (new URL(url).hash !== '#demo') return;
+  history.replaceState(null, '', location.pathname + location.search);
+  if (app.conn === 'disconnected') { hideStart(); app.connect('demo'); }
+}
+demoFromUrl(location.href);
+window.addEventListener('hashchange', () => demoFromUrl(location.href));
+// launch_handler focus-existing: a shortcut tapped while the app is open arrives here
+window.launchQueue?.setConsumer((p) => { if (p.targetURL) demoFromUrl(p.targetURL); });

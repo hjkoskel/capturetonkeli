@@ -7,6 +7,10 @@
 <meta name="description" content="Monitor-mode Wi-Fi capture in the browser with an ESP32-C5 USB dongle (Web Serial / WebUSB). Receive-only.">
 <meta name="theme-color" content="#1f6feb">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="capturetonkeli">
+<meta name="apple-mobile-web-app-title" content="capturetonkeli">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/app.css">
 <script type="module" src="js/main.js"></script>
@@ -29,6 +33,7 @@
   <div id="menu" class="menu hidden" role="menu">
     <button role="menuitem" data-act="disconnect">Disconnect</button>
     <button role="menuitem" data-act="export">Export buffer (pcapng)…</button>
+    <button role="menuitem" data-act="install" class="hidden">Install as app…</button>
     <button role="menuitem" data-act="help">Keyboard shortcuts</button>
     <button role="menuitem" data-act="about">About &amp; legal</button>
   </div>
@@ -46,6 +51,7 @@
       <button id="start-reconnect" class="big hidden"></button>
       <button id="start-demo" class="big">Try without hardware</button>
     </div>
+    <p id="start-install" class="hidden"><button id="start-install-btn" class="small">Install as app</button> <span class="muted small">Opens in its own window, works offline, starts from the home screen or app menu.</span></p>
     <p><button id="start-flash" class="small">Flash firmware to a new dongle…</button> <span class="muted small">(factory-fresh XIAO ESP32-C5 or other firmware)</span></p>
     <p class="muted small">Desktop: Chrome, Edge, Opera, or Firefox ≥ 151 (Web Serial). Android: Chrome (USB-OTG, WebUSB). iPhone/iPad are not supported.</p>
   </section>

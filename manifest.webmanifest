@@ -1,11 +1,32 @@
 {
-  "name": "capturetonkeli",
-  "short_name": "ctk",
-  "description": "Wi-Fi monitor-mode capture with an ESP32-C5 USB dongle (receive-only).",
+  "id": "./",
+  "name": "capturetonkeli – Wi-Fi capture dongle",
+  "short_name": "capturetonkeli",
+  "description": "Monitor-mode Wi-Fi capture with an ESP32-C5 USB dongle (receive-only): packet list, filters, pcapng recording, FPV video from hx-esp32-cam-fpv and OpenHD drones. Works offline; on Android connect the dongle with a USB OTG adapter.",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#0d1117",
   "theme_color": "#1f6feb",
-  "icons": [{ "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+  "categories": ["utilities", "developer tools"],
+  "prefer_related_applications": false,
+  "launch_handler": { "client_mode": "focus-existing" },
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Demo mode (no hardware)", "short_name": "Demo", "description": "Simulated dongle with Wi-Fi traffic and FPV drones", "url": "./#demo",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ],
+  "screenshots": [
+    { "src": "icons/screenshot-narrow.png", "sizes": "540x1170", "type": "image/png", "form_factor": "narrow", "label": "Packet list on a phone (demo mode)" },
+    { "src": "icons/screenshot-fpv-narrow.png", "sizes": "540x1170", "type": "image/png", "form_factor": "narrow", "label": "OpenHD FPV video and telemetry (demo mode)" },
+    { "src": "icons/screenshot-wide.png", "sizes": "1280x800", "type": "image/png", "form_factor": "wide", "label": "Packet list, filters and packet detail (demo mode)" }
+  ]
 }

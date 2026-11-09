@@ -8,6 +8,8 @@ A Seeed **XIAO ESP32-C5** (dual-band 2.4 / 5 GHz Wi-Fi 6) captures 802.11 frames
 
 Captures are saved as pcapng with radiotap headers, ready for Wireshark. The dongle only receives; it never transmits.
 
+The web page is an installable app (PWA): in Chrome/Edge choose **Install as app** (⋮ menu or start screen) or *Add to Home screen* on Android. It then runs in its own window, starts offline, and offers a Reload when a new version is out.
+
 ## Status
 Milestones M0–M2 (no hardware needed) implemented: Go reference library + simulator + conformance suite, the portable firmware core running on a PC pseudo-terminal, and the ESP-IDF firmware build. Hardware bring-up (M3+) and the web UI are next; see [docs/07](docs/07-firmware-plan.md).
 

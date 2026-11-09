@@ -2,10 +2,19 @@
 import { app } from '../app.js';
 import { h, confirmDlg, download, toast, inline } from './dom.js';
 import * as settings from '../settings.js';
+import * as wake from '../wakelock.js';
 
 export function initSettings(root, { applyTheme }) {
   const s = settings.get();
   const msg = h('div');
+  const wakeNote = h('p.small.muted');
+  const drawWake = (w) => {
+    wakeNote.textContent = !w.supported ? 'This browser cannot keep the screen on (no Screen Wake Lock API); change the screen timeout in the system settings instead.'
+      : w.active ? 'Screen is kept on now.' : w.wanted && w.error ? `The browser refused to keep the screen on (${w.error}); battery saver can cause this.`
+        : 'A phone that locks its screen suspends this page, and the dongle then stops the capture after 2 s.';
+  };
+  wake.onChange(drawWake);
+  drawWake(wake.state());
   const chk = (key, label) => h('label.row', h('input', { type: 'checkbox', checked: !!s[key], onchange: (e) => settings.update((x) => { x[key] = e.target.checked; }) }), label);
   const sel = (key, label, opts, after) => h('label.field', label,
     h('select', { onchange: (e) => { settings.update((x) => { x[key] = e.target.value; }); after?.(e.target.value); } },
@@ -22,6 +31,8 @@ export function initSettings(root, { applyTheme }) {
     h('h3', 'Session'),
     chk('autoCapture', ' Start capture automatically on connect'),
     chk('autoReconnect', ' Reconnect automatically when the link is lost'),
+    sel('keepAwake', 'Keep the screen on', [['connected', 'While connected or recording'], ['always', 'Always while this page is open'], ['off', 'Never (the system decides)']], () => wake.refresh()),
+    wakeNote,
     sel('transport', 'Transport', [['auto', 'Auto (Web Serial on desktop, WebUSB on Android)'], ['serial', 'Web Serial'], ['webusb', 'WebUSB (CDC-ACM shim)']]),
     h('h3', 'Packet list'),
     num('storeSize', 'Packet store size (packets kept in memory)', 10000, 2000000, (v) => { app.post({ t: 'store-size', n: v }); toast('Packet store resized (list cleared)'); }),
